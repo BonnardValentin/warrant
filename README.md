@@ -75,23 +75,29 @@ twice and quarantined if it disagrees with itself.
 Node 22.6+ (it runs the TypeScript directly, no build step):
 
 ```
-node examples/dedupe/run.ts
+node examples/dedupe/run.ts      # verify code   (subprocess, property tests)
+node examples/meal-plan/run.ts   # verify data   (in-process, with a scored constraint)
 ```
 
-The example asks for a humble function — remove duplicates from a list, keep the
-order things first appeared. You'll watch it write the criteria, reject a
-deliberately-broken stand-in to prove those criteria actually bite, reject the
-first real attempt and say exactly why, then accept the second and tell you how
-strong that acceptance is.
+The first asks for a humble function — remove duplicates from a list, keep the
+order things first appeared. The second asks for a week of dinners under a calorie
+cap with no repeated main. They look nothing alike — one verifies *code* in a
+subprocess, the other verifies a plain *data* object in-process with a soft
+"prefer light dinners" score — yet both run through the **identical** loop, with
+no changes to `packages/core`. In each you'll watch it write the criteria, reject
+a deliberately-broken stand-in to prove those criteria bite, reject the first real
+attempt and say exactly why, then accept the second with an assurance level.
 
 ## Inside
 
-| Path                  | What                                                            |
-| --------------------- | --------------------------------------------------------------- |
-| `packages/core`       | the loop and the witness model. zero dependencies.              |
-| `packages/verify-fn`  | a verifier that runs code against property tests in a sandbox.  |
-| `examples/dedupe`     | the run above.                                                  |
-| `PLAN.md`             | the full design, with the reasoning behind every decision.      |
+| Path                       | What                                                              |
+| -------------------------- | ----------------------------------------------------------------- |
+| `packages/core`            | the loop and the witness model. zero dependencies.                |
+| `packages/verify-fn`       | verify a function: runs it against property tests in a sandbox.    |
+| `packages/verify-predicate`| verify a data value: runs named predicates in-process.            |
+| `examples/dedupe`          | the code run above.                                               |
+| `examples/meal-plan`       | the data run above.                                               |
+| `PLAN.md`                  | the full design, with the reasoning behind every decision.        |
 
 If you want to know how it really works — how evidence is modelled, how
 acceptance composes, how a dishonest checker gets caught — read
@@ -99,9 +105,11 @@ acceptance composes, how a dishonest checker gets caught — read
 
 ## Status
 
-An early cut (M0): the spine works, one real verifier exists, the loop closes end
-to end. The surface will still move. Next is proving the core survives a second,
-very different kind of task; then a real model as the agent; then an adversarial
+Early, but past its first real test. The spine works and the loop closes end to
+end (M0); and the core ran a second, structurally different domain — data instead
+of code, in-process instead of sandboxed, with a scored constraint — with **zero
+changes** to `packages/core` (M1), which is the evidence the abstraction holds.
+The surface will still move. Next: a real model as the agent, then an adversarial
 critic whose only job is to find the gaps in the success criteria.
 
 <div align="center">

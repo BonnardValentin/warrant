@@ -235,11 +235,13 @@ runs **both** `verify-fn` and `verify-predicate` unchanged.
 
 ## Milestones
 
-- **M0 — spine + one domain.** `core` + `verify-fn` + `examples/dedupe`. The
-  dedupe loop closes (reject→accept) on scripted backends. *Done = the demo runs.*
-- **M1 — prove generality.** `verify-predicate` + `examples/meal-plan`, run
-  through the **identical** `runLoop`. *Done = core unchanged across 2 domains.*
-  (If the core bent, the abstraction was wrong — fix it here, before anything else.)
+- **M0 — spine + one domain. ✅ DONE.** `core` + `verify-fn` + `examples/dedupe`;
+  the dedupe loop closes (reject→accept). Also reviewed/simplified, Biome-clean,
+  and hardened (infra errors → inconclusive, never a false accept).
+- **M1 — prove generality. ✅ DONE.** `verify-predicate` + `examples/meal-plan`
+  (data, in-process, with a scored claim) ran through the **identical** `runLoop`
+  with an empty diff on `packages/core`. The abstraction held — code vs data,
+  subprocess vs in-process, binary vs scored evidence all compose unchanged.
 - **M2 — real model.** `solver-claude` (SpecAuthor + Solver). *Done = both
   examples solve with real Claude, key-gated.*
 - **M3 — adversarial critic (third role).** An independent agent that hunts for
