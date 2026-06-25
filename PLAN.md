@@ -74,8 +74,8 @@ interface Verifier {
 discipline that **policy never leaks into verifiers**.
 
 4. **Witness is a wire format, not just a TS type** — versioned JSON (`warrant/v1`),
-   so NOX (Rust) and Telos (TS) share one witness contract. This invariant is also
-   what buys structural isolation for free.
+   so a Rust runtime and a TS runtime share one witness contract. This invariant
+   is also what buys structural isolation for free.
 
 ### LOCKED — Layer 2 verification model
 
@@ -152,11 +152,11 @@ verify-js never hardcodes the mechanism, so hardening isolation doesn't touch ve
   expose verifiers as MCP tools later for reach; not the core transport.
 - **`warrant/v1` defined once as JSON Schema**; TS types and Rust `serde` structs
   are **generated** from it (`json-schema-to-typescript` + `schemars`/`typify`).
-  One source of truth ⇒ NOX and Telos cannot drift.
+  One source of truth ⇒ the Rust and TS types cannot drift.
 
 ```
-warrant.schema.json ──┬──► types.ts    (Telos / TS verifiers)
-                      └──► witness.rs   (NOX / Rust verifiers & reward sink)
+warrant.schema.json ──┬──► types.ts    (TS verifiers)
+                      └──► witness.rs   (Rust verifiers & reward sink)
 ```
 
 **F · Execution model: streaming + lifecycle.**
@@ -218,7 +218,7 @@ warrant/
     verify-predicate/# in-process predicate checks over plain data
     verify-judge/    # LLM-as-judge verifier (soft, non-binary) — later
     solver-claude/   # SpecAuthor + Solver via @anthropic-ai/sdk
-    bridge-nox/       # (later) read/write the witness wire format from Rust
+    bridge-rust/      # (later) read/write the witness wire format from Rust
   examples/
     dedupe/          # code domain  (proves the subprocess verifier)
     meal-plan/       # data domain  (proves the in-process verifier)
@@ -231,7 +231,7 @@ runs **both** `verify-js` and `verify-predicate` unchanged.
 
 | Choice | What | Why |
 |---|---|---|
-| Language | TypeScript, strict | Where the harness-engineering audience is; aligns with Telos/Lumen |
+| Language | TypeScript, strict | Where the harness-engineering audience is |
 | Runtime (dev) | Node 24 native type-stripping | `node x.ts` runs with zero build step |
 | Modules | ESM only | Modern default; clean subpath exports |
 | Core deps | **none** | The spine must stay legible and portable |
@@ -250,8 +250,8 @@ runs **both** `verify-js` and `verify-predicate` unchanged.
   (If the core bent, the abstraction was wrong — fix it here, before anything else.)
 - **M2 — real model.** `solver-claude` (SpecAuthor + Solver). *Done = both
   examples solve with real Claude, key-gated.*
-- **M3 — witness wire format + NOX bridge.** Freeze `warrant/v1` JSON schema;
-  `bridge-nox` round-trips it. *Done = a Rust-produced witness validates in TS.*
+- **M3 — witness wire format + Rust bridge.** Freeze `warrant/v1` JSON schema;
+  `bridge-rust` round-trips it. *Done = a Rust-produced witness validates in TS.*
 - **M4 — adversarial critic (third role).** An independent agent that hunts for
   a property the SpecAuthor missed and appends it to the Contract. *Done = it
   catches a real gap in the meal-plan contract.* (This is what starts making the
@@ -259,15 +259,15 @@ runs **both** `verify-js` and `verify-predicate` unchanged.
 - **M5 — package + docs.** Publishable `@warrant/*`, README per package, one
   "write your own verifier in 30 lines" guide.
 
-NOX integration is M3+: the accept/reject signal becomes the reward NOX's loop
-currently discards — that's the self-improving verifier loop, and it's the reason
-to build this at all.
+The Rust bridge is M3+: the accept/reject signal is a reward a learning loop can
+train on — turning "acted" into a gradient. That's the self-improving verifier
+loop, and it's a big part of the reason to build this at all.
 
 ## Open decisions (your call)
 
 1. **Name** — `warrant`? (alts: `attest`, `vouch`, `witnessd`). Placeholder for now.
 2. **OSS or internal-first** — publish `@warrant/*`, or keep it private as the
-   NOX/Telos substrate until M3? Affects how much API-surface polish M0–M2 need.
+   substrate until M3? Affects how much API-surface polish M0–M2 need.
 3. **Second domain** — meal-plan (ties to Plato, fully deterministic) vs. SQL
    invariant vs. LLM-judge. I recommend meal-plan for M1 (no key, unlike the code
    domain in shape) and add verify-judge at M4 alongside the critic.
