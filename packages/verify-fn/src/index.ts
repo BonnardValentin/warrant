@@ -9,17 +9,19 @@
 // is injected for deterministic randomized inputs.
 
 import { spawn } from "node:child_process";
-import { writeFile, mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Verifier, Sandbox, SandboxLimits, SandboxResult } from "../../core/src/verifier.ts";
-import type { Witness, Claim, Severity } from "../../core/src/witness.ts";
+import type { Sandbox, SandboxLimits, SandboxResult, Verifier } from "../../core/src/verifier.ts";
+import type { Severity, Witness } from "../../core/src/witness.ts";
 
 export class SubprocessSandbox implements Sandbox {
   run(entryFile: string, limits: SandboxLimits): Promise<SandboxResult> {
     return new Promise((resolve) => {
-      const child = spawn(process.execPath, [entryFile], { stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(process.execPath, [`--max-old-space-size=${limits.memMb}`, entryFile], {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       let stdout = "";
       let stderr = "";
       let timedOut = false;
@@ -66,31 +68,43 @@ export class FunctionVerifier implements Verifier<string, string> {
 
   async verify(impl: string, spec: string, seed: number): Promise<Witness> {
     const dir = await mkdtemp(join(tmpdir(), "warrant-"));
-    const file = join(dir, "candidate.mjs");
-    const src = `${PREAMBLE}const __seed = ${seed | 0};\n// ---- artifact ----\n${impl}\n// ---- spec ----\n${spec}\n// ---- harness ----${harness()}`;
-    await writeFile(file, src);
-    const res = await this.sandbox.run(file, { ms: 10_000, memMb: 256, net: false });
-    await rm(dir, { recursive: true, force: true });
-
-    const idx = res.stdout.lastIndexOf(SENTINEL);
-    if (idx === -1) {
-      const errLine = (
-        res.stderr.split("\n").find((l) => /error/i.test(l)) ?? (res.timedOut ? "timed out" : "no report")
-      ).trim();
-      return { schema: "warrant/v1", seed, loadError: `candidate did not run: ${errLine}`, claims: [] };
-    }
-    const json = res.stdout.slice(idx + SENTINEL.length).split("\n")[0];
-    let report: Report[];
     try {
-      report = JSON.parse(json) as Report[];
-    } catch {
-      return { schema: "warrant/v1", seed, loadError: "unparseable report", claims: [] };
+      const file = join(dir, "candidate.mjs");
+      const src = `${PREAMBLE}const __seed = ${seed | 0};\n// ---- artifact ----\n${impl}\n// ---- spec ----\n${spec}\n// ---- harness ----${harness()}`;
+      await writeFile(file, src);
+      const res = await this.sandbox.run(file, { ms: 10_000, memMb: 256 });
+
+      const idx = res.stdout.lastIndexOf(SENTINEL);
+      if (idx === -1) {
+        const errLine = (
+          res.stderr.split("\n").find((l) => /error/i.test(l)) ??
+          (res.timedOut ? "timed out" : "no report")
+        ).trim();
+        return {
+          schema: "warrant/v1",
+          seed,
+          loadError: `candidate did not run: ${errLine}`,
+          claims: [],
+        };
+      }
+      const json = res.stdout.slice(idx + SENTINEL.length).split("\n")[0];
+      let report: Report[];
+      try {
+        report = JSON.parse(json) as Report[];
+      } catch {
+        return { schema: "warrant/v1", seed, loadError: "unparseable report", claims: [] };
+      }
+      return {
+        schema: "warrant/v1",
+        seed,
+        claims: report.map((r) => ({
+          id: r.id,
+          severity: r.severity ?? "required",
+          evidence: { kind: "binary", ok: r.ok, detail: r.detail },
+        })),
+      };
+    } finally {
+      await rm(dir, { recursive: true, force: true });
     }
-    const claims: Claim[] = report.map((r) => ({
-      id: r.id,
-      severity: r.severity ?? "required",
-      evidence: { kind: "binary", ok: r.ok, detail: r.detail },
-    }));
-    return { schema: "warrant/v1", seed, claims };
   }
 }

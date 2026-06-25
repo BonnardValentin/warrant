@@ -1,12 +1,15 @@
-// @warrant/core — the witness model (Layer 1).
-// A witness is claims, each carrying typed evidence. Acceptance is a separate
-// policy (see policy.ts). This file has zero dependencies and is the canonical
-// shape that serializes to `warrant/v1` JSON across TS and Rust.
+// The witness model. A witness is claims, each carrying typed evidence;
+// acceptance is a separate policy (policy.ts). Zero dependencies.
 
 export type Evidence =
   | { kind: "binary"; ok: boolean; detail?: string }
   | { kind: "score"; value: number; of: number; samples?: { n: number; agree: number } }
-  | { kind: "proof"; system: "replay" | "lean" | "attestation"; artifact: string; checked: boolean };
+  | {
+      kind: "proof";
+      system: "replay" | "lean" | "attestation";
+      artifact: string;
+      checked: boolean;
+    };
 
 export type Severity = "required" | "scored";
 
@@ -14,7 +17,7 @@ export interface Claim {
   id: string;
   severity: Severity;
   weight?: number;
-  /** default true; false = held out of solver feedback (anti-gaming, Layer 4·H) */
+  /** default true; false = held out of solver feedback (anti-gaming) */
   revealed?: boolean;
   evidence: Evidence;
 }
@@ -34,7 +37,7 @@ export const DEFAULT_QUORUM: Quorum = { n: 5, agree: 4 };
 
 export type ClaimStatus = "hold" | "fail" | "inconclusive";
 
-/** Three-valued per-claim status (Layer 4·G). */
+/** Three-valued per-claim status: holds, fails, or can't tell. */
 export function claimStatus(c: Claim, quorum: Quorum = DEFAULT_QUORUM): ClaimStatus {
   const e = c.evidence;
   switch (e.kind) {
@@ -42,13 +45,18 @@ export function claimStatus(c: Claim, quorum: Quorum = DEFAULT_QUORUM): ClaimSta
       return e.ok ? "hold" : "fail";
     case "proof":
       return e.checked ? "hold" : "fail";
-    case "score":
+    case "score": {
       if (e.samples) {
-        if (e.samples.agree >= quorum.agree) return "hold";
-        if (e.samples.n - e.samples.agree >= quorum.agree) return "fail";
+        const { n, agree } = e.samples;
+        if (n === 0) return "inconclusive";
+        const need = quorum.agree / quorum.n; // agreement fraction, panel-size independent
+        if (agree / n >= need) return "hold";
+        if ((n - agree) / n >= need) return "fail";
         return "inconclusive"; // judges split → honest "don't know"
       }
+      if (e.of === 0) return "inconclusive"; // nothing measured
       return e.value / e.of >= 0.5 ? "hold" : "fail";
+    }
   }
 }
 

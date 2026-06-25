@@ -1,11 +1,10 @@
-// @warrant/core — the loop (Layers 2 & 4).
-// Author the contract once; solve → verify → retry until accepted, exhausted,
-// stalled, or inconclusive. Independence is enforced at the TYPE level: Solver.solve
-// has no contract parameter, so a solver literally cannot read the contract.
+// The loop. Author the contract once; solve → verify → retry until accepted,
+// exhausted, stalled, or inconclusive. Independence is enforced at the TYPE level:
+// Solver.solve has no contract parameter, so a solver cannot read the contract.
 
-import { type Witness, type Claim, claimStatus, DEFAULT_QUORUM } from "./witness.ts";
-import { type Verifier } from "./verifier.ts";
-import { type Policy, type Decision, standard } from "./policy.ts";
+import { type Decision, type Policy, standard } from "./policy.ts";
+import type { Verifier } from "./verifier.ts";
+import { type Claim, claimStatus, DEFAULT_QUORUM, type Quorum, type Witness } from "./witness.ts";
 
 export interface SpecAuthor<T, C> {
   author(task: T): Promise<C>;
@@ -53,22 +52,41 @@ function detailOf(c: Claim): string {
   return `proof ${e.system} unverified`;
 }
 
-// Solver feedback reveals only claims with revealed !== false (Layer 4·H).
-function buildFeedback(attempt: number, w: Witness, prevFailed: Set<string>): Feedback {
+// Feedback reveals only claims with revealed !== false (anti-gaming).
+function buildFeedback(
+  attempt: number,
+  w: Witness,
+  prevFailed: Set<string>,
+  quorum: Quorum,
+): Feedback {
   const visible = w.claims.filter((c) => c.revealed !== false);
   const failed = visible
-    .filter((c) => claimStatus(c) === "fail")
+    .filter((c) => claimStatus(c, quorum) === "fail")
     .map((c) => ({ id: c.id, detail: detailOf(c) }));
-  const held = visible.filter((c) => claimStatus(c) === "hold").map((c) => c.id);
+  const held = visible.filter((c) => claimStatus(c, quorum) === "hold").map((c) => c.id);
   const regressed = failed.filter((f) => !prevFailed.has(f.id)).map((f) => f.id);
-  return { attempt, failed, held, regressed, progress: `${held.length}/${visible.length} visible claims hold` };
+  return {
+    attempt,
+    failed,
+    held,
+    regressed,
+    progress: `${held.length}/${visible.length} visible claims hold`,
+  };
 }
 
-// Determinism is VERIFIED, not trusted (Layer 4·G): run a deterministic verifier
-// twice; if the witnesses differ, quarantine it as inconclusive.
-async function verifyChecked<A, C>(v: Verifier<A, C>, artifact: A, contract: C, seed: number): Promise<Witness> {
+// Determinism is VERIFIED, not trusted: the first time we use a deterministic
+// verifier in this run, run it twice and quarantine it as inconclusive if the two
+// witnesses disagree. A verifier stable on first use is trusted thereafter, so we
+// don't pay the double-run on every attempt.
+async function verifyChecked<A, C>(
+  v: Verifier<A, C>,
+  artifact: A,
+  contract: C,
+  seed: number,
+  checkReplay: boolean,
+): Promise<Witness> {
   const w = await v.verify(artifact, contract, seed);
-  if (v.cls !== "deterministic" || w.loadError) return w;
+  if (!checkReplay || v.cls !== "deterministic" || w.loadError) return w;
   const w2 = await v.verify(artifact, contract, seed);
   if (JSON.stringify(w.claims) !== JSON.stringify(w2.claims)) {
     // split-sample score → policy reads this as inconclusive (quarantine)
@@ -79,7 +97,12 @@ async function verifyChecked<A, C>(v: Verifier<A, C>, artifact: A, contract: C, 
         {
           id: "__determinism__",
           severity: "required",
-          evidence: { kind: "score", value: 0.5, of: 1, samples: { n: DEFAULT_QUORUM.n, agree: 2 } },
+          evidence: {
+            kind: "score",
+            value: 0.5,
+            of: 1,
+            samples: { n: DEFAULT_QUORUM.n, agree: 2 },
+          },
         },
       ],
     };
@@ -93,6 +116,7 @@ export interface RunConfig<T, C, A> {
   solver: Solver<T, A>;
   verifier: Verifier<A, C>;
   policy?: Policy;
+  quorum?: Quorum;
   maxAttempts?: number;
   stallK?: number;
   negativeControls?: A[];
@@ -101,7 +125,8 @@ export interface RunConfig<T, C, A> {
 }
 
 export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopResult<A>> {
-  const policy = cfg.policy ?? standard();
+  const quorum = cfg.quorum ?? DEFAULT_QUORUM;
+  const policy = cfg.policy ?? standard(0.9, quorum);
   const maxAttempts = cfg.maxAttempts ?? 5;
   const stallK = cfg.stallK ?? 2;
   const seed = cfg.seed ?? 1;
@@ -110,11 +135,20 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   const contract = await cfg.specAuthor.author(cfg.task);
   emit({ t: "spec.authored" });
 
-  // Layer 4·H — negative controls: the contract MUST reject deliberately-wrong artifacts.
-  for (let i = 0; i < (cfg.negativeControls?.length ?? 0); i++) {
-    const w = await verifyChecked(cfg.verifier, cfg.negativeControls![i], contract, seed);
+  let replayChecked = false;
+  const verify = async (artifact: A): Promise<Witness> => {
+    const w = await verifyChecked(cfg.verifier, artifact, contract, seed, !replayChecked);
+    replayChecked = true;
+    return w;
+  };
+
+  // Negative controls: the contract MUST actively reject deliberately-wrong
+  // artifacts. Anything short of a "reject" verdict (including inconclusive) means
+  // we can't trust the contract.
+  for (const [i, control] of (cfg.negativeControls ?? []).entries()) {
+    const w = await verify(control);
     const d = policy(w.claims);
-    const rejected = d.verdict !== "accept";
+    const rejected = d.verdict === "reject";
     emit({ t: "negative-control", index: i, rejected });
     if (!rejected) {
       emit({ t: "loop.done", status: "bad-contract" });
@@ -125,15 +159,17 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   let prevFailed = new Set<string>();
   let stall = 0;
   let feedback: Feedback | undefined;
-  let last: Witness = { schema: "warrant/v1", claims: [] };
+  let lastArtifact: A | undefined;
+  let lastWitness: Witness = { schema: "warrant/v1", claims: [] };
   let lastDecision: Decision | undefined;
 
   for (let n = 1; n <= maxAttempts; n++) {
     emit({ t: "attempt.start", n });
     const artifact = await cfg.solver.solve(cfg.task, n - 1, feedback);
-    const w = await verifyChecked(cfg.verifier, artifact, contract, seed);
+    const w = await verify(artifact);
     const d = policy(w.claims);
-    last = w;
+    lastArtifact = artifact;
+    lastWitness = w;
     lastDecision = d;
     emit({ t: "attempt.verdict", n, decision: d });
 
@@ -146,13 +182,18 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
       return { status: "inconclusive", artifact, witness: w, decision: d, attempts: n };
     }
 
-    // reject → feedback diff + stall detection (Layer 2·B/C)
-    feedback = buildFeedback(n, w, prevFailed);
-    const failedSet = new Set(feedback.failed.map((f) => f.id));
+    // reject → solver feedback, then stall detection on the FULL failing set
+    // (including held-out claims), so hidden progress isn't mistaken for a stall.
+    feedback = buildFeedback(n, w, prevFailed, quorum);
+    const failing = new Set(
+      w.claims.filter((c) => claimStatus(c, quorum) === "fail").map((c) => c.id),
+    );
     const sameAsPrev =
-      failedSet.size === prevFailed.size && [...failedSet].every((id) => prevFailed.has(id));
+      failing.size > 0 &&
+      failing.size === prevFailed.size &&
+      [...failing].every((id) => prevFailed.has(id));
     stall = sameAsPrev ? stall + 1 : 0;
-    prevFailed = failedSet;
+    prevFailed = failing;
     if (stall >= stallK) {
       emit({ t: "loop.done", status: "stalled" });
       return { status: "stalled", artifact, witness: w, decision: d, attempts: n };
@@ -160,5 +201,11 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   }
 
   emit({ t: "loop.done", status: "rejected-exhausted" });
-  return { status: "rejected-exhausted", witness: last, decision: lastDecision, attempts: maxAttempts };
+  return {
+    status: "rejected-exhausted",
+    artifact: lastArtifact,
+    witness: lastWitness,
+    decision: lastDecision,
+    attempts: maxAttempts,
+  };
 }

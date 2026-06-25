@@ -5,6 +5,11 @@
   "workspaces": ["packages/*", "examples/*"],
   "engines": { "node": ">=22.6" },
   "scripts": {
-    "demo": "node examples/dedupe/run.ts"
+    "demo": "node examples/dedupe/run.ts",
+    "lint": "biome check",
+    "format": "biome check --write"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.1"
   }
 }

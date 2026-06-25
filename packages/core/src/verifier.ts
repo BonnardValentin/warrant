@@ -1,9 +1,9 @@
-// @warrant/core — verifier + sandbox interfaces (Layer 3·D).
-// Two separable concerns: a Verifier declares its CLASS (how trustworthy/repeatable
-// it is), and a Sandbox isolates the untrusted artifact execution. verify-fn never
-// hardcodes a sandbox, so hardening isolation (subprocess → WASM) never touches it.
+// Verifier + Sandbox interfaces. A Verifier declares its class (how repeatable/
+// trustworthy it is); a Sandbox isolates untrusted artifact execution. Verifiers
+// take a Sandbox rather than hardcode one, so isolation can harden (subprocess →
+// WASM) without touching them.
 
-import { type Witness } from "./witness.ts";
+import type { Witness } from "./witness.ts";
 
 export type VerifierClass = "deterministic" | "stochastic" | "proof";
 
@@ -13,10 +13,13 @@ export interface Verifier<A = unknown, C = unknown> {
   verify(artifact: A, contract: C, seed: number): Promise<Witness>;
 }
 
+// The subprocess sandbox bounds TIME and MEMORY only. It does NOT isolate
+// capabilities (filesystem, network, child processes) — that needs a stronger
+// sandbox (WASM), which is the planned artifact-safety boundary. Treat artifacts
+// as only as contained as the Sandbox in use actually guarantees.
 export interface SandboxLimits {
   ms: number;
   memMb: number;
-  net: false;
 }
 
 export interface SandboxResult {
@@ -25,7 +28,7 @@ export interface SandboxResult {
   timedOut: boolean;
 }
 
-/** Runs untrusted, model-generated code. The artifact-safety boundary. */
+/** Runs model-generated code under resource bounds (see SandboxLimits). */
 export interface Sandbox {
   run(entryFile: string, limits: SandboxLimits): Promise<SandboxResult>;
 }
