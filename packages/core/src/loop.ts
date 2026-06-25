@@ -162,13 +162,11 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   let replayChecked = false;
   // Infra failures (sandbox spawn, verifier throw) become an inconclusive
   // witness — they must never crash the loop or be mistaken for a verdict.
-  const verify = async (artifact: A): Promise<Witness> => {
+  const verify = async (artifact: A, checkReplay: boolean): Promise<Witness> => {
     try {
-      return await verifyChecked(cfg.verifier, artifact, contract, seed, !replayChecked);
+      return await verifyChecked(cfg.verifier, artifact, contract, seed, checkReplay);
     } catch (e) {
       return infraWitness(`verifier threw: ${errMsg(e)}`, seed);
-    } finally {
-      replayChecked = true;
     }
   };
 
@@ -176,7 +174,9 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   // artifacts. Anything short of a "reject" verdict (including inconclusive) means
   // we can't trust the contract.
   for (const [i, control] of (cfg.negativeControls ?? []).entries()) {
-    const w = await verify(control);
+    // Controls don't consume the determinism replay-check — that's spent on the
+    // first real attempt, where it actually matters.
+    const w = await verify(control, false);
     const d = decide(w, policy);
     const rejected = d.verdict === "reject";
     emit({ t: "negative-control", index: i, rejected });
@@ -205,28 +205,45 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
       emit({ t: "loop.done", status: "inconclusive" });
       return { status: "inconclusive", witness: w, decision: d, attempts: n };
     }
-    const w = await verify(artifact);
-    const d = decide(w, policy);
+    const w = await verify(artifact, !replayChecked);
+    replayChecked = true;
     lastArtifact = artifact;
     lastWitness = w;
+
+    let d: Decision;
+    let failing: Set<string>;
+    if (w.loadError) {
+      // The artifact didn't run / couldn't be verified. Never accept — but this is
+      // recoverable, so feed the error back and let the solver try again.
+      d = { verdict: "inconclusive", assurance: "none", rationale: w.loadError };
+      emit({ t: "attempt.verdict", n, decision: d });
+      feedback = {
+        attempt: n,
+        failed: [{ id: "did_not_run", detail: w.loadError }],
+        held: [],
+        regressed: prevFailed.has("did_not_run") ? [] : ["did_not_run"],
+        progress: "artifact did not run",
+      };
+      failing = new Set(["did_not_run"]);
+    } else {
+      d = decide(w, policy);
+      emit({ t: "attempt.verdict", n, decision: d });
+      if (d.verdict === "accept") {
+        emit({ t: "loop.done", status: "accepted" });
+        return { status: "accepted", artifact, witness: w, decision: d, attempts: n };
+      }
+      if (d.verdict === "inconclusive") {
+        // genuine ambiguity (e.g. a quarantined nondeterministic verifier) → escalate
+        emit({ t: "loop.done", status: "inconclusive" });
+        return { status: "inconclusive", artifact, witness: w, decision: d, attempts: n };
+      }
+      // reject → solver feedback + stall detection on the FULL failing set
+      // (including held-out claims), so hidden progress isn't mistaken for a stall.
+      feedback = buildFeedback(n, w, prevFailed, quorum);
+      failing = new Set(w.claims.filter((c) => claimStatus(c, quorum) === "fail").map((c) => c.id));
+    }
     lastDecision = d;
-    emit({ t: "attempt.verdict", n, decision: d });
 
-    if (d.verdict === "accept") {
-      emit({ t: "loop.done", status: "accepted" });
-      return { status: "accepted", artifact, witness: w, decision: d, attempts: n };
-    }
-    if (d.verdict === "inconclusive") {
-      emit({ t: "loop.done", status: "inconclusive" });
-      return { status: "inconclusive", artifact, witness: w, decision: d, attempts: n };
-    }
-
-    // reject → solver feedback, then stall detection on the FULL failing set
-    // (including held-out claims), so hidden progress isn't mistaken for a stall.
-    feedback = buildFeedback(n, w, prevFailed, quorum);
-    const failing = new Set(
-      w.claims.filter((c) => claimStatus(c, quorum) === "fail").map((c) => c.id),
-    );
     const sameAsPrev =
       failing.size > 0 &&
       failing.size === prevFailed.size &&

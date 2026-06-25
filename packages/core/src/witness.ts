@@ -62,7 +62,10 @@ export function claimStatus(c: Claim, quorum: Quorum = DEFAULT_QUORUM): ClaimSta
 
 export function scoreFraction(c: Claim): number {
   const e = c.evidence;
-  if (e.kind === "score") return e.value / e.of;
   if (e.kind === "binary") return e.ok ? 1 : 0;
-  return e.checked ? 1 : 0;
+  if (e.kind === "proof") return e.checked ? 1 : 0;
+  // score: prefer the sampled agreement fraction (consistent with claimStatus);
+  // otherwise value/of, guarding against a 0 denominator (no NaN/Infinity).
+  if (e.samples) return e.samples.n === 0 ? 0 : e.samples.agree / e.samples.n;
+  return e.of === 0 ? 0 : e.value / e.of;
 }

@@ -4,13 +4,9 @@
 //
 //   node examples/dedupe/run.ts
 
-import {
-  type Event,
-  runLoop,
-  type Solver,
-  type SpecAuthor,
-} from "../../packages/core/src/index.ts";
+import { runLoop, type Solver, type SpecAuthor } from "../../packages/core/src/index.ts";
 import { FunctionVerifier } from "../../packages/verify-fn/src/index.ts";
+import { makePrinter, printWitness } from "../_shared.ts";
 
 type Task = { name: string; signature: string; description: string };
 
@@ -81,40 +77,13 @@ const solver: Solver<Task, string> = {
 // A negative control: identity. A good contract MUST reject it (it keeps dups).
 const negativeControls = [`function dedupe(xs) { return xs; }`];
 
-function printEvent(e: Event) {
-  switch (e.t) {
-    case "spec.authored":
-      console.log("· contract authored (spec sees only the task)\n");
-      break;
-    case "negative-control":
-      console.log(
-        `· negative control #${e.index}: ${e.rejected ? "✓ rejected (good contract)" : "✗ ACCEPTED — bad contract!"}\n`,
-      );
-      break;
-    case "attempt.start":
-      console.log(`· attempt ${e.n}: solving (sees only task + prior witness)…`);
-      break;
-    case "attempt.verdict":
-      console.log(
-        `  verdict: ${badge(e.decision.verdict)}  [assurance: ${e.decision.assurance}]  — ${e.decision.rationale}`,
-      );
-      break;
-    case "loop.done":
-      console.log(`\n══ ${e.status} ══`);
-      break;
-  }
-}
-function badge(v: string) {
-  return v === "accept" ? "✓ ACCEPT" : v === "inconclusive" ? "? INCONCLUSIVE" : "✗ REJECT";
-}
-
 const result = await runLoop<Task, string, string>({
   task,
   specAuthor,
   solver,
   verifier: new FunctionVerifier(),
   negativeControls,
-  onEvent: printEvent,
+  onEvent: makePrinter(),
 });
 
 if (result.status === "accepted") {
@@ -124,10 +93,5 @@ if (result.status === "accepted") {
   console.log("\naccepted artifact:\n");
   console.log(`    ${(result.artifact ?? "").trim()}`);
 } else {
-  console.log(`\nfinal witness:`);
-  for (const c of result.witness.claims) {
-    const e = c.evidence;
-    const mark = e.kind === "binary" ? (e.ok ? "✓" : "✗") : "·";
-    console.log(`  ${mark} ${c.id}${e.kind === "binary" && e.detail ? `  — ${e.detail}` : ""}`);
-  }
+  printWitness(result.witness);
 }

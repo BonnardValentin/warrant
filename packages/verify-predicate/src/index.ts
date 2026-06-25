@@ -34,11 +34,19 @@ export class PredicateVerifier<A> implements Verifier<A, Predicate<A>[]> {
   verify(value: A, predicates: Predicate<A>[], seed: number): Promise<Witness> {
     const claims: Claim[] = predicates.map((p) => {
       if (p.kind === "score") {
+        // A throwing score() contributes 0 rather than aborting the whole map —
+        // the other (often required) claims still get recorded and can reject.
+        let scored = 0;
+        try {
+          scored = clamp01(p.score(value));
+        } catch {
+          scored = 0;
+        }
         return {
           id: p.id,
           severity: p.severity ?? "scored",
           weight: p.weight,
-          evidence: { kind: "score", value: clamp01(p.score(value)), of: 1 },
+          evidence: { kind: "score", value: scored, of: 1 },
         };
       }
       try {

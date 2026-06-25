@@ -17,6 +17,14 @@ export type CodeTask = {
 
 const CODE = z.object({ code: z.string() });
 
+// Models often wrap code in a markdown fence despite instructions not to; strip
+// it so a formatting slip doesn't turn into an un-runnable artifact.
+function unfence(s: string): string {
+  const t = s.trim();
+  const m = t.match(/^```[a-zA-Z0-9]*\n([\s\S]*?)\n?```$/);
+  return (m ? m[1] : t).trim();
+}
+
 const defaultModel = (): LanguageModel => anthropic("claude-opus-4-8");
 
 // The spec-author sees ONLY the task. It returns JS source defining the property
@@ -38,7 +46,7 @@ export function aiSpecAuthor(model: LanguageModel = defaultModel()): SpecAuthor<
           "randomized inputs across many cases. Do not define the implementation; do not import anything.",
         prompt: `Task: ${task.description}\nThe implementation is a function named \`${task.functionName}\`.`,
       });
-      return object.code;
+      return unfence(object.code);
     },
   };
 }
@@ -66,7 +74,7 @@ export function aiSolver(model: LanguageModel = defaultModel()): Solver<CodeTask
           "defining the requested function — no prose, no tests, no imports, no markdown fences.",
         prompt,
       });
-      return object.code;
+      return unfence(object.code);
     },
   };
 }
