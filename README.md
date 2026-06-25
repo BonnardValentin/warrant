@@ -3,8 +3,7 @@
 A small, in-the-loop, **witness-carrying** harness for AI agents. Every action
 emits a machine-checkable witness; an independent verifier turns "the agent
 acted" into "the agent succeeded" — and the accept/reject becomes the reward
-signal. The witness is a versioned JSON wire format, so a Rust runtime and a TS
-runtime can share one contract.
+signal a learning loop can train on.
 
 > Status: **M0** — the spine + a deterministic JS verifier + a runnable example.
 > The full design (4 locked layers, SOTA decisions, milestones) lives in
@@ -45,5 +44,4 @@ attempt 2 accepted — with an **assurance level** on the accept.
 ## Status / roadmap
 
 M0 (here) → M1 prove the core unchanged on a second, non-code domain → M2 real
-Claude solver → M3 freeze the `warrant/v1` JSON schema + a Rust bridge → M4
-adversarial critic → M5 package. See [`PLAN.md`](./PLAN.md).
+Claude solver → M3 adversarial critic → M4 package. See [`PLAN.md`](./PLAN.md).

@@ -73,9 +73,9 @@ interface Verifier {
 **The whole tax of going SOTA:** ~150 lines of core instead of ~40, and the
 discipline that **policy never leaks into verifiers**.
 
-4. **Witness is a wire format, not just a TS type** — versioned JSON (`warrant/v1`),
-   so a Rust runtime and a TS runtime share one witness contract. This invariant
-   is also what buys structural isolation for free.
+4. **Witness is plain, serializable JSON** — carries a `schema` version tag
+   (`warrant/v1`). Needed for the process boundary in Layer 3·D and for
+   storing/auditing witnesses. (No cross-language ambition — it's a TS library.)
 
 ### LOCKED — Layer 2 verification model
 
@@ -145,19 +145,12 @@ interface Sandbox {
 ```
 verify-js never hardcodes the mechanism, so hardening isolation doesn't touch verifiers.
 
-**E · Wire protocol + schema source-of-truth (cross-language keystone).**
+**E · Role transport.**
 
-- Transport between roles: **JSON-RPC 2.0 over stdio** — methods `author`,
-  `solve`, `verify`. Language-agnostic (a role can be a Rust binary). May *also*
-  expose verifiers as MCP tools later for reach; not the core transport.
-- **`warrant/v1` defined once as JSON Schema**; TS types and Rust `serde` structs
-  are **generated** from it (`json-schema-to-typescript` + `schemars`/`typify`).
-  One source of truth ⇒ the Rust and TS types cannot drift.
-
-```
-warrant.schema.json ──┬──► types.ts    (TS verifiers)
-                      └──► witness.rs   (Rust verifiers & reward sink)
-```
+- Transport between the isolated roles: **JSON-RPC 2.0 over stdio** — methods
+  `author`, `solve`, `verify`. Simple, battle-tested, and the serialization the
+  process boundary (Layer 3·D) needs anyway. May *also* expose verifiers as MCP
+  tools later for reach; not the core transport.
 
 **F · Execution model: streaming + lifecycle.**
 
@@ -218,7 +211,6 @@ warrant/
     verify-predicate/# in-process predicate checks over plain data
     verify-judge/    # LLM-as-judge verifier (soft, non-binary) — later
     solver-claude/   # SpecAuthor + Solver via @anthropic-ai/sdk
-    bridge-rust/      # (later) read/write the witness wire format from Rust
   examples/
     dedupe/          # code domain  (proves the subprocess verifier)
     meal-plan/       # data domain  (proves the in-process verifier)
@@ -250,18 +242,16 @@ runs **both** `verify-js` and `verify-predicate` unchanged.
   (If the core bent, the abstraction was wrong — fix it here, before anything else.)
 - **M2 — real model.** `solver-claude` (SpecAuthor + Solver). *Done = both
   examples solve with real Claude, key-gated.*
-- **M3 — witness wire format + Rust bridge.** Freeze `warrant/v1` JSON schema;
-  `bridge-rust` round-trips it. *Done = a Rust-produced witness validates in TS.*
-- **M4 — adversarial critic (third role).** An independent agent that hunts for
+- **M3 — adversarial critic (third role).** An independent agent that hunts for
   a property the SpecAuthor missed and appends it to the Contract. *Done = it
   catches a real gap in the meal-plan contract.* (This is what starts making the
   witness hard to game.)
-- **M5 — package + docs.** Publishable `@warrant/*`, README per package, one
+- **M4 — package + docs.** Publishable `@warrant/*`, README per package, one
   "write your own verifier in 30 lines" guide.
 
-The Rust bridge is M3+: the accept/reject signal is a reward a learning loop can
-train on — turning "acted" into a gradient. That's the self-improving verifier
-loop, and it's a big part of the reason to build this at all.
+The accept/reject signal is a reward a learning loop can train on — turning
+"acted" into a gradient. That self-improving verifier loop is a big part of why
+this is worth building.
 
 ## Open decisions (your call)
 
