@@ -72,7 +72,8 @@ twice and quarantined if it disagrees with itself.
 
 ## Try it
 
-Node 22.6+ (it runs the TypeScript directly, no build step):
+Node 22.6+ (it runs the TypeScript directly, no build step). The first two need
+no install:
 
 ```
 node examples/dedupe/run.ts      # verify code   (subprocess, property tests)
@@ -88,6 +89,18 @@ no changes to `packages/core`. In each you'll watch it write the criteria, rejec
 a deliberately-broken stand-in to prove those criteria bite, reject the first real
 attempt and say exactly why, then accept the second with an assurance level.
 
+To solve with a real model instead of scripted attempts (`npm install` first, set
+a key):
+
+```
+ANTHROPIC_API_KEY=… node examples/dedupe-ai/run.ts
+```
+
+The model writes the property tests *and* the implementation as two independent
+calls — it never sees its own tests. It's built on the Vercel AI SDK, so it's
+provider-agnostic: the default is `claude-opus-4-8`, but pass any AI SDK model to
+swap providers in one line.
+
 ## Inside
 
 | Path                       | What                                                              |
@@ -95,8 +108,10 @@ attempt and say exactly why, then accept the second with an assurance level.
 | `packages/core`            | the loop and the witness model. zero dependencies.                |
 | `packages/verify-fn`       | verify a function: runs it against property tests in a sandbox.    |
 | `packages/verify-predicate`| verify a data value: runs named predicates in-process.            |
-| `examples/dedupe`          | the code run above.                                               |
-| `examples/meal-plan`       | the data run above.                                               |
+| `packages/solver-ai`       | a model-backed solver + spec-author (Vercel AI SDK, any provider).|
+| `examples/dedupe`          | the code run above (scripted).                                    |
+| `examples/meal-plan`       | the data run above (scripted).                                    |
+| `examples/dedupe-ai`       | the code run, solved by a real model.                             |
 | `PLAN.md`                  | the full design, with the reasoning behind every decision.        |
 
 If you want to know how it really works — how evidence is modelled, how
@@ -105,11 +120,11 @@ acceptance composes, how a dishonest checker gets caught — read
 
 ## Status
 
-Early, but past its first real test. The spine works and the loop closes end to
-end (M0); and the core ran a second, structurally different domain — data instead
-of code, in-process instead of sandboxed, with a scored constraint — with **zero
-changes** to `packages/core` (M1), which is the evidence the abstraction holds.
-The surface will still move. Next: a real model as the agent, then an adversarial
+Early, but past its first real tests. The spine works and the loop closes end to
+end (M0); the core ran a second, structurally different domain — data instead of
+code, in-process instead of sandboxed, with a scored constraint — with **zero
+changes** to `packages/core` (M1); and a real model now drives the loop through a
+provider-agnostic solver (M2). The surface will still move. Next: an adversarial
 critic whose only job is to find the gaps in the success criteria.
 
 <div align="center">

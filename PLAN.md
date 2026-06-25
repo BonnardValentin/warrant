@@ -242,8 +242,13 @@ runs **both** `verify-fn` and `verify-predicate` unchanged.
   (data, in-process, with a scored claim) ran through the **identical** `runLoop`
   with an empty diff on `packages/core`. The abstraction held — code vs data,
   subprocess vs in-process, binary vs scored evidence all compose unchanged.
-- **M2 — real model.** `solver-claude` (SpecAuthor + Solver). *Done = both
-  examples solve with real Claude, key-gated.*
+- **M2 — real model. ✅ DONE (live run pending a key).** `solver-ai` — a
+  model-backed SpecAuthor + Solver on the **Vercel AI SDK** (provider-agnostic;
+  `generateObject` + Zod), default `claude-opus-4-8`, swappable in one line. Core
+  stays SDK-free; the dependency lives only in this package. `examples/dedupe-ai`
+  wires it to the loop and key-gates. (Solver chosen over a vendor SDK so the
+  reference solver isn't Anthropic-locked; raw-SDK solvers remain trivial to write
+  against the `Solver` interface for provider-specific features.)
 - **M3 — adversarial critic (third role).** An independent agent that hunts for
   a property the SpecAuthor missed and appends it to the Contract. *Done = it
   catches a real gap in the meal-plan contract.* (This is what starts making the
