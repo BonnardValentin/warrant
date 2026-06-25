@@ -1,5 +1,5 @@
 {
-  "name": "@warrant/verify-js",
+  "name": "@warrant/verify-fn",
   "version": "0.0.0",
   "private": true,
   "type": "module",

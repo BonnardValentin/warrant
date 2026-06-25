@@ -143,7 +143,7 @@ interface Sandbox {
 // now:  SubprocessSandbox (child + rlimits, net disabled)
 // SOTA: WasmSandbox (QuickJS/Javy for JS; wasmtime for compiled langs)
 ```
-verify-js never hardcodes the mechanism, so hardening isolation doesn't touch verifiers.
+verify-fn never hardcodes the mechanism, so hardening isolation doesn't touch verifiers.
 
 **E · Role transport.**
 
@@ -207,7 +207,7 @@ policy. No core change needed — a claim may reference multiple artifacts alrea
 warrant/
   packages/
     core/            # types, runLoop, Witness wire schema. ZERO deps.
-    verify-js/       # run impl vs property tests in a sandboxed subprocess
+    verify-fn/       # run impl vs property tests in a sandboxed subprocess
     verify-predicate/# in-process predicate checks over plain data
     verify-judge/    # LLM-as-judge verifier (soft, non-binary) — later
     solver-claude/   # SpecAuthor + Solver via @anthropic-ai/sdk
@@ -217,7 +217,7 @@ warrant/
 ```
 
 `core` knows nothing about any of the others. Generality is proven when `core`
-runs **both** `verify-js` and `verify-predicate` unchanged.
+runs **both** `verify-fn` and `verify-predicate` unchanged.
 
 ## Tech stack (with rationale)
 
@@ -230,12 +230,12 @@ runs **both** `verify-js` and `verify-predicate` unchanged.
 | Monorepo | pnpm workspaces | Core + plugins + examples, independently versioned |
 | Tests | `node:test` built-in | No test-framework dep; dogfood-able |
 | Build/publish | tsc (types) + tsdown | Dual-safe ESM packages when we publish |
-| Sandbox (verify-js) | child process + timeout now; **WASM/worker isolation later** | Start simple, harden when it's real |
+| Sandbox (verify-fn) | child process + timeout now; **WASM/worker isolation later** | Start simple, harden when it's real |
 | Model adapter | `@anthropic-ai/sdk`, `claude-opus-4-8`, adaptive thinking, structured outputs | First-class, not curl |
 
 ## Milestones
 
-- **M0 — spine + one domain.** `core` + `verify-js` + `examples/dedupe`. The
+- **M0 — spine + one domain.** `core` + `verify-fn` + `examples/dedupe`. The
   dedupe loop closes (reject→accept) on scripted backends. *Done = the demo runs.*
 - **M1 — prove generality.** `verify-predicate` + `examples/meal-plan`, run
   through the **identical** `runLoop`. *Done = core unchanged across 2 domains.*
@@ -272,6 +272,6 @@ this is worth building.
 
 ## First step on "go"
 
-M0 only: `packages/core/core.ts`, `packages/verify-js/`, `examples/dedupe/`, and
+M0 only: `packages/core/core.ts`, `packages/verify-fn/`, `examples/dedupe/`, and
 a runnable demo. ~150 lines. Everything else waits until the dedupe loop closes
 and M1 proves the core survives a second domain.

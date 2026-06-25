@@ -1,6 +1,6 @@
 // @warrant/core — verifier + sandbox interfaces (Layer 3·D).
 // Two separable concerns: a Verifier declares its CLASS (how trustworthy/repeatable
-// it is), and a Sandbox isolates the untrusted artifact execution. verify-js never
+// it is), and a Sandbox isolates the untrusted artifact execution. verify-fn never
 // hardcodes a sandbox, so hardening isolation (subprocess → WASM) never touches it.
 
 import { type Witness } from "./witness.ts";

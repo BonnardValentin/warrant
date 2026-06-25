@@ -5,7 +5,7 @@
 //   node examples/dedupe/run.ts
 
 import { runLoop, type SpecAuthor, type Solver, type Event } from "../../packages/core/src/index.ts";
-import { JsTestVerifier } from "../../packages/verify-js/src/index.ts";
+import { FunctionVerifier } from "../../packages/verify-fn/src/index.ts";
 
 type Task = { name: string; signature: string; description: string };
 
@@ -103,7 +103,7 @@ const result = await runLoop<Task, string, string>({
   task,
   specAuthor,
   solver,
-  verifier: new JsTestVerifier(),
+  verifier: new FunctionVerifier(),
   negativeControls,
   onEvent: printEvent,
 });

@@ -1,9 +1,12 @@
-// @warrant/verify-js — a deterministic verifier for JS functions.
-// It assembles impl + independently-authored property tests + a harness into one
-// module, runs it in a sandbox (untrusted code), and parses the per-claim report.
-// The spec source defines `properties(): {id, severity?, test}[]`; the impl defines
-// the function under test. They share module scope; `__seed` is injected for
-// deterministic randomized inputs.
+// @warrant/verify-fn — verify ONE function (the agent's artifact) against
+// independently-authored property tests.
+//
+// This is a verifier, not a test suite. It runs at loop time: given the function
+// the agent produced and property tests the spec-author wrote without seeing that
+// function, it runs them together in a sandbox and produces a witness the loop
+// gates acceptance on. The spec source defines `properties(): {id, severity?, test}[]`;
+// the artifact defines the function under test. They share module scope; `__seed`
+// is injected for deterministic randomized inputs.
 
 import { spawn } from "node:child_process";
 import { writeFile, mkdtemp, rm } from "node:fs/promises";
@@ -54,7 +57,7 @@ process.stdout.write("\\n${SENTINEL}" + JSON.stringify(__out) + "\\n");
 
 type Report = { id: string; severity?: Severity; ok: boolean; detail?: string };
 
-export class JsTestVerifier implements Verifier<string, string> {
+export class FunctionVerifier implements Verifier<string, string> {
   readonly cls = "deterministic" as const;
   private sandbox: Sandbox;
   constructor(sandbox: Sandbox = new SubprocessSandbox()) {
@@ -64,7 +67,7 @@ export class JsTestVerifier implements Verifier<string, string> {
   async verify(impl: string, spec: string, seed: number): Promise<Witness> {
     const dir = await mkdtemp(join(tmpdir(), "warrant-"));
     const file = join(dir, "candidate.mjs");
-    const src = `${PREAMBLE}const __seed = ${seed | 0};\n// ---- impl ----\n${impl}\n// ---- spec ----\n${spec}\n// ---- harness ----${harness()}`;
+    const src = `${PREAMBLE}const __seed = ${seed | 0};\n// ---- artifact ----\n${impl}\n// ---- spec ----\n${spec}\n// ---- harness ----${harness()}`;
     await writeFile(file, src);
     const res = await this.sandbox.run(file, { ms: 10_000, memMb: 256, net: false });
     await rm(dir, { recursive: true, force: true });

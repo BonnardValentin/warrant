@@ -89,7 +89,7 @@ strong that acceptance is.
 | Path                  | What                                                            |
 | --------------------- | --------------------------------------------------------------- |
 | `packages/core`       | the loop and the witness model. zero dependencies.              |
-| `packages/verify-js`  | a verifier that runs code against property tests in a sandbox.  |
+| `packages/verify-fn`  | a verifier that runs code against property tests in a sandbox.  |
 | `examples/dedupe`     | the run above.                                                  |
 | `PLAN.md`             | the full design, with the reasoning behind every decision.      |
 
