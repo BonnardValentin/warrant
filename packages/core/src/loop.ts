@@ -52,6 +52,22 @@ function detailOf(c: Claim): string {
   return `proof ${e.system} unverified`;
 }
 
+function errMsg(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+function infraWitness(reason: string, seed: number): Witness {
+  return { schema: "warrant/v1", seed, loadError: reason, claims: [] };
+}
+
+// A witness we couldn't produce or trust (the artifact didn't run, the verifier
+// threw, a timeout) is INCONCLUSIVE — never accept. Without this, a loadError
+// witness has empty claims and policy([]) would vacuously accept.
+function decide(w: Witness, policy: Policy): Decision {
+  if (w.loadError) return { verdict: "inconclusive", assurance: "none", rationale: w.loadError };
+  return policy(w.claims);
+}
+
 // Feedback reveals only claims with revealed !== false (anti-gaming).
 function buildFeedback(
   attempt: number,
@@ -132,14 +148,28 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   const seed = cfg.seed ?? 1;
   const emit = cfg.onEvent ?? (() => {});
 
-  const contract = await cfg.specAuthor.author(cfg.task);
+  let contract: C;
+  try {
+    contract = await cfg.specAuthor.author(cfg.task);
+  } catch (e) {
+    // Can't even author the contract — nothing to verify against.
+    const w = infraWitness(`spec author threw: ${errMsg(e)}`, seed);
+    emit({ t: "loop.done", status: "inconclusive" });
+    return { status: "inconclusive", witness: w, decision: decide(w, policy), attempts: 0 };
+  }
   emit({ t: "spec.authored" });
 
   let replayChecked = false;
+  // Infra failures (sandbox spawn, verifier throw) become an inconclusive
+  // witness — they must never crash the loop or be mistaken for a verdict.
   const verify = async (artifact: A): Promise<Witness> => {
-    const w = await verifyChecked(cfg.verifier, artifact, contract, seed, !replayChecked);
-    replayChecked = true;
-    return w;
+    try {
+      return await verifyChecked(cfg.verifier, artifact, contract, seed, !replayChecked);
+    } catch (e) {
+      return infraWitness(`verifier threw: ${errMsg(e)}`, seed);
+    } finally {
+      replayChecked = true;
+    }
   };
 
   // Negative controls: the contract MUST actively reject deliberately-wrong
@@ -147,7 +177,7 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   // we can't trust the contract.
   for (const [i, control] of (cfg.negativeControls ?? []).entries()) {
     const w = await verify(control);
-    const d = policy(w.claims);
+    const d = decide(w, policy);
     const rejected = d.verdict === "reject";
     emit({ t: "negative-control", index: i, rejected });
     if (!rejected) {
@@ -165,9 +195,18 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
 
   for (let n = 1; n <= maxAttempts; n++) {
     emit({ t: "attempt.start", n });
-    const artifact = await cfg.solver.solve(cfg.task, n - 1, feedback);
+    let artifact: A;
+    try {
+      artifact = await cfg.solver.solve(cfg.task, n - 1, feedback);
+    } catch (e) {
+      const w = infraWitness(`solver threw: ${errMsg(e)}`, seed);
+      const d = decide(w, policy);
+      emit({ t: "attempt.verdict", n, decision: d });
+      emit({ t: "loop.done", status: "inconclusive" });
+      return { status: "inconclusive", witness: w, decision: d, attempts: n };
+    }
     const w = await verify(artifact);
-    const d = policy(w.claims);
+    const d = decide(w, policy);
     lastArtifact = artifact;
     lastWitness = w;
     lastDecision = d;
