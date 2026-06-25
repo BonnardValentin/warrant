@@ -1,0 +1,10 @@
+{
+  "name": "warrant-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": ["packages/*", "examples/*"],
+  "engines": { "node": ">=22.6" },
+  "scripts": {
+    "demo": "node examples/dedupe/run.ts"
+  }
+}
