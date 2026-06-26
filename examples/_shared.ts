@@ -51,6 +51,10 @@ export function nth<T>(arr: readonly T[], i: number): T {
 }
 
 export function printWitness(w: Witness): void {
+  if (w.loadError) {
+    console.log(`\ncould not verify: ${w.loadError}`);
+    return;
+  }
   console.log("\nfinal witness:");
   for (const c of w.claims) {
     const e = c.evidence;
