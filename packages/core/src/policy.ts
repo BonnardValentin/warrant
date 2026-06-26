@@ -33,6 +33,9 @@ export function assuranceOf(claims: Claim[]): Assurance {
 
 export function standard(theta = 0.9, quorum: Quorum = DEFAULT_QUORUM): Policy {
   return (claims) => {
+    // No criteria means nothing was actually checked — never a vacuous accept.
+    if (claims.length === 0)
+      return { verdict: "inconclusive", assurance: "none", rationale: "no claims to verify" };
     const assurance = assuranceOf(claims);
     const required = claims.filter((c) => c.severity === "required");
     const scored = claims.filter((c) => c.severity === "scored");
