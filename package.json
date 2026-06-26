@@ -6,6 +6,7 @@
   "engines": { "node": ">=22.6" },
   "scripts": {
     "demo": "node examples/dedupe/run.ts",
+    "demo:ai": "node --env-file=.env examples/dedupe-ai/run.ts",
     "test": "node --test \"packages/**/test/*.test.ts\"",
     "lint": "biome check",
     "format": "biome check --write"
