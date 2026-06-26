@@ -38,13 +38,25 @@ export function aiSpecAuthor(model: LanguageModel = defaultModel()): SpecAuthor<
         schema: CODE,
         system:
           "You author property-based tests that pin down what a correct solution must satisfy. " +
-          "You will NOT see the implementation — write the properties from the spec alone. " +
-          "Output JavaScript source defining `function properties()` that returns an array of " +
-          "`{ id, severity, test }`, where each `test` is a zero-arg function that calls the candidate " +
-          "function directly and throws via the provided `assert(cond, msg)` on a violation, with a clear " +
-          "message and counterexample. Use the injected integer `__seed` to generate deterministic " +
-          "randomized inputs across many cases. Do not define the implementation; do not import anything.",
-        prompt: `Task: ${task.description}\nThe implementation is a function named \`${task.functionName}\`.`,
+          "You will NOT see the implementation — write the properties from the spec alone.\n\n" +
+          "Output JavaScript source with one function `properties()` returning an array of " +
+          "{ id: string, severity: 'required' | 'scored', test: () => void }. Strict contract:\n" +
+          "- `test` takes NO arguments.\n" +
+          "- Inside `test`, call the function under test by its name (already defined in scope); " +
+          "do NOT redeclare, import, or require it.\n" +
+          "- Check with `assert(condition, message)` — `assert` is ALREADY a global function; " +
+          "do NOT import, require, or redefine it. On violation `assert` throws; include a clear " +
+          "message with a counterexample.\n" +
+          "- `severity` must be exactly the string 'required' or 'scored'.\n" +
+          "- Use the in-scope integer `__seed` for deterministic randomized inputs across many cases.\n" +
+          "- No imports, no top-level code other than function declarations, no markdown fences.\n\n" +
+          "Example shape:\n" +
+          "function properties() {\n" +
+          "  return [\n" +
+          `    { id: "returns_array", severity: "required", test: () => { assert(Array.isArray(${task.functionName}([1,2,2])), "must return an array"); } },\n` +
+          "  ];\n" +
+          "}",
+        prompt: `Task: ${task.description}\nThe function under test is named \`${task.functionName}\`.`,
       });
       return unfence(object.code);
     },

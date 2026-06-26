@@ -99,7 +99,10 @@ export class FunctionVerifier implements Verifier<string, string> {
         seed,
         claims: report.map((r) => ({
           id: r.id,
-          severity: r.severity ?? "required",
+          // Fail-safe: anything not explicitly "scored" is treated as required, so a
+          // malformed spec (unknown/missing severity) can't be silently ignored into
+          // a vacuous accept.
+          severity: r.severity === "scored" ? "scored" : "required",
           evidence: { kind: "binary", ok: r.ok, detail: r.detail },
         })),
       };
