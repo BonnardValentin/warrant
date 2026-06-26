@@ -145,3 +145,68 @@ test("rejected-exhausted keeps the last artifact", async () => {
   assert.equal(r.status, "rejected-exhausted");
   assert.equal(r.artifact, "art2");
 });
+
+// --- critic (M3) ---
+
+// a verifier whose verdict depends on BOTH the artifact and the contract
+function byContract(
+  pass: (artifact: string, contract: string) => boolean,
+): Verifier<string, string> {
+  return {
+    cls: "deterministic",
+    verify: (a, c) => Promise.resolve(pass(a, c) ? passW() : failW()),
+  };
+}
+const weakAuthor: SpecAuthor<Task, string> = {
+  async author() {
+    return "weak";
+  },
+};
+
+test("critic strengthens the contract, breaks a too-weak accept, and the loop recovers", async () => {
+  const r = await runLoop<Task, string, string>({
+    task: { id: "t" },
+    specAuthor: weakAuthor,
+    solver: solverFrom(["ok", "great"]), // "ok" passes weak but not strong; "great" passes both
+    verifier: byContract((a, c) => (c === "strong" ? a === "great" : a === "ok" || a === "great")),
+    critic: {
+      async propose(_t, c) {
+        return c === "weak" ? "strong" : null;
+      },
+    },
+  });
+  assert.equal(r.status, "accepted");
+  assert.equal(r.attempts, 2); // attempt1's weak accept is broken by the critic; attempt2 passes strong
+});
+
+test("a critic that finds no gap lets the accept stand on the first attempt", async () => {
+  const r = await runLoop<Task, string, string>({
+    task: { id: "t" },
+    specAuthor: weakAuthor,
+    solver: solverFrom(["great"]),
+    verifier: byContract(() => true),
+    critic: {
+      async propose() {
+        return null;
+      },
+    },
+  });
+  assert.equal(r.status, "accepted");
+  assert.equal(r.attempts, 1);
+});
+
+test("a throwing critic does not turn a real accept into a non-accept", async () => {
+  const r = await runLoop<Task, string, string>({
+    task: { id: "t" },
+    specAuthor: weakAuthor,
+    solver: solverFrom(["great"]),
+    verifier: byContract(() => true),
+    critic: {
+      async propose() {
+        throw new Error("critic boom");
+      },
+    },
+  });
+  assert.equal(r.status, "accepted");
+  assert.equal(r.attempts, 1);
+});

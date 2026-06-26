@@ -249,10 +249,13 @@ runs **both** `verify-fn` and `verify-predicate` unchanged.
   wires it to the loop and key-gates. (Solver chosen over a vendor SDK so the
   reference solver isn't Anthropic-locked; raw-SDK solvers remain trivial to write
   against the `Solver` interface for provider-specific features.)
-- **M3 — adversarial critic (third role).** An independent agent that hunts for
-  a property the SpecAuthor missed and appends it to the Contract. *Done = it
-  catches a real gap in the meal-plan contract.* (This is what starts making the
-  witness hard to game.)
+- **M3 — adversarial critic (third role). ✅ DONE.** A `Critic` role (blind to
+  the artifact) runs after an accept and proposes a *strengthened* contract; the
+  accepted artifact must survive it, or the loop reopens with the stronger
+  contract. `aiCritic` in `solver-ai`; integrated into `runLoop` (bounded by
+  `maxCriticRounds`, fail-safe if the critic throws). Live: the model's dedupe
+  survived two strengthening rounds; unit tests cover the break-and-recover path.
+  This is what starts making the witness hard to game.
 - **M4 — package + docs.** Publishable `@warrant/*`, README per package, one
   "write your own verifier in 30 lines" guide.
 

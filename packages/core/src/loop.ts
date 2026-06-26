@@ -15,6 +15,13 @@ export interface Solver<T, A> {
   solve(task: T, attempt: number, feedback?: Feedback): Promise<A>;
 }
 
+// An independent adversary that strengthens the CONTRACT. It sees the task and the
+// current contract — never the artifact — and returns a strengthened contract
+// (existing criteria + extra ones covering gaps), or null if it finds no gap.
+export interface Critic<T, C> {
+  propose(task: T, contract: C): Promise<C | null>;
+}
+
 export interface Feedback {
   attempt: number;
   failed: { id: string; detail: string }[];
@@ -43,6 +50,7 @@ export type Event =
   | { t: "negative-control"; index: number; rejected: boolean }
   | { t: "attempt.start"; n: number }
   | { t: "attempt.verdict"; n: number; decision: Decision }
+  | { t: "critic.round"; round: number; survived: boolean }
   | { t: "loop.done"; status: LoopStatus };
 
 function detailOf(c: Claim): string {
@@ -136,6 +144,8 @@ export interface RunConfig<T, C, A> {
   maxAttempts?: number;
   stallK?: number;
   negativeControls?: A[];
+  critic?: Critic<T, C>;
+  maxCriticRounds?: number;
   onEvent?: (e: Event) => void;
   seed?: number;
 }
@@ -144,6 +154,7 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   const quorum = cfg.quorum ?? DEFAULT_QUORUM;
   const policy = cfg.policy ?? standard(0.9, quorum);
   const maxAttempts = cfg.maxAttempts ?? 5;
+  const maxCriticRounds = cfg.maxCriticRounds ?? 2;
   const stallK = cfg.stallK ?? 2;
   const seed = cfg.seed ?? 1;
   const emit = cfg.onEvent ?? (() => {});
@@ -162,9 +173,9 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   let replayChecked = false;
   // Infra failures (sandbox spawn, verifier throw) become an inconclusive
   // witness — they must never crash the loop or be mistaken for a verdict.
-  const verify = async (artifact: A, checkReplay: boolean): Promise<Witness> => {
+  const verify = async (artifact: A, c: C, checkReplay: boolean): Promise<Witness> => {
     try {
-      return await verifyChecked(cfg.verifier, artifact, contract, seed, checkReplay);
+      return await verifyChecked(cfg.verifier, artifact, c, seed, checkReplay);
     } catch (e) {
       return infraWitness(`verifier threw: ${errMsg(e)}`, seed);
     }
@@ -176,7 +187,7 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
   for (const [i, control] of (cfg.negativeControls ?? []).entries()) {
     // Controls don't consume the determinism replay-check — that's spent on the
     // first real attempt, where it actually matters.
-    const w = await verify(control, false);
+    const w = await verify(control, contract, false);
     const d = decide(w, policy);
     const rejected = d.verdict === "reject";
     emit({ t: "negative-control", index: i, rejected });
@@ -205,7 +216,7 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
       emit({ t: "loop.done", status: "inconclusive" });
       return { status: "inconclusive", witness: w, decision: d, attempts: n };
     }
-    const w = await verify(artifact, !replayChecked);
+    const w = await verify(artifact, contract, !replayChecked);
     replayChecked = true;
     lastArtifact = artifact;
     lastWitness = w;
@@ -228,19 +239,47 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
     } else {
       d = decide(w, policy);
       emit({ t: "attempt.verdict", n, decision: d });
-      if (d.verdict === "accept") {
-        emit({ t: "loop.done", status: "accepted" });
-        return { status: "accepted", artifact, witness: w, decision: d, attempts: n };
-      }
+
       if (d.verdict === "inconclusive") {
         // genuine ambiguity (e.g. a quarantined nondeterministic verifier) → escalate
         emit({ t: "loop.done", status: "inconclusive" });
         return { status: "inconclusive", artifact, witness: w, decision: d, attempts: n };
       }
-      // reject → solver feedback + stall detection on the FULL failing set
-      // (including held-out claims), so hidden progress isn't mistaken for a stall.
-      feedback = buildFeedback(n, w, prevFailed, quorum);
-      failing = new Set(w.claims.filter((c) => claimStatus(c, quorum) === "fail").map((c) => c.id));
+
+      let outcome = w;
+      if (d.verdict === "accept") {
+        // Adversarial critic: an accept must survive the contract being strengthened.
+        // The critic sees task + contract (never the artifact); the strengthened
+        // contract is adopted going forward whether or not the artifact survives it.
+        for (let round = 1; cfg.critic && round <= maxCriticRounds; round++) {
+          let augmented: C | null;
+          try {
+            augmented = await cfg.critic.propose(cfg.task, contract);
+          } catch {
+            break; // a flaky critic must not turn a real accept into a non-accept
+          }
+          if (augmented == null) break; // converged: the critic found no gap
+          contract = augmented;
+          outcome = await verify(artifact, contract, false);
+          d = decide(outcome, policy);
+          emit({ t: "critic.round", round, survived: d.verdict === "accept" });
+          if (d.verdict !== "accept") break; // the spec was too weak — not really an accept
+        }
+        if (d.verdict === "accept") {
+          lastWitness = outcome;
+          lastDecision = d;
+          emit({ t: "loop.done", status: "accepted" });
+          return { status: "accepted", artifact, witness: outcome, decision: d, attempts: n };
+        }
+      }
+
+      // reject (original, or the critic broke a tentative accept) → feedback + stall
+      // on the FULL failing set (incl. held-out claims), so hidden progress isn't a stall.
+      lastWitness = outcome;
+      feedback = buildFeedback(n, outcome, prevFailed, quorum);
+      failing = new Set(
+        outcome.claims.filter((c) => claimStatus(c, quorum) === "fail").map((c) => c.id),
+      );
     }
     lastDecision = d;
 
@@ -252,7 +291,7 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
     prevFailed = failing;
     if (stall >= stallK) {
       emit({ t: "loop.done", status: "stalled" });
-      return { status: "stalled", artifact, witness: w, decision: d, attempts: n };
+      return { status: "stalled", artifact, witness: lastWitness, decision: d, attempts: n };
     }
   }
 

@@ -8,7 +8,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
 import { generateObject } from "ai";
 import { z } from "zod";
-import type { Solver, SpecAuthor } from "../../core/src/index.ts";
+import type { Critic, Solver, SpecAuthor } from "../../core/src/index.ts";
 
 export type CodeTask = {
   description: string;
@@ -87,6 +87,36 @@ export function aiSolver(model: LanguageModel = defaultModel()): Solver<CodeTask
         prompt,
       });
       return unfence(object.code);
+    },
+  };
+}
+
+const CRITIQUE = z.object({ foundGap: z.boolean(), code: z.string() });
+
+// The critic sees the task and the current test suite — never an implementation.
+// It hunts for a property the suite misses and returns the FULL strengthened suite,
+// or null when it finds no gap. Returning the whole suite keeps the core's merge
+// trivial (it just swaps the contract).
+export function aiCritic(model: LanguageModel = defaultModel()): Critic<CodeTask, string> {
+  return {
+    async propose(task, contract) {
+      const { object } = await generateObject({
+        model,
+        schema: CRITIQUE,
+        system:
+          "You are an adversarial reviewer of a property-test SUITE for a function. You see the task " +
+          "and the CURRENT suite — never any implementation. Find ONE important property the suite " +
+          "MISSES: an input class, edge case, or invariant that a plausible-but-wrong solution could " +
+          "satisfy the current suite while still violating. If you find one, return foundGap=true and " +
+          "`code` = the FULL suite (every existing property UNCHANGED, plus your new one) in the exact " +
+          "same format and harness contract (one `properties()` returning { id, severity, test }; each " +
+          "`test` is zero-arg, calls the function by name, uses the global `assert(cond, msg)`, severity " +
+          "is exactly 'required' or 'scored', deterministic inputs from the in-scope `__seed`; no imports, " +
+          "no fences). Do NOT weaken or remove existing properties. If the suite already covers the task " +
+          "thoroughly, return foundGap=false and code=''.",
+        prompt: `Task: ${task.description}\nFunction under test: \`${task.functionName}\`.\nCurrent suite:\n\n${contract}`,
+      });
+      return object.foundGap ? unfence(object.code) : null;
     },
   };
 }

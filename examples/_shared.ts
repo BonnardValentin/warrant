@@ -35,6 +35,11 @@ export function makePrinter(labels: Labels = {}): (e: Event) => void {
           `  verdict: ${badge(e.decision.verdict)}  [assurance: ${e.decision.assurance}]  — ${e.decision.rationale}`,
         );
         break;
+      case "critic.round":
+        console.log(
+          `  critic round ${e.round}: ${e.survived ? "✓ survived (contract strengthened)" : "✗ found a gap — contract was too weak"}`,
+        );
+        break;
       case "loop.done":
         console.log(`\n══ ${e.status} ══`);
         break;

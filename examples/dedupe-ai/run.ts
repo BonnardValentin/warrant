@@ -7,7 +7,12 @@
 //   ANTHROPIC_API_KEY=… node examples/dedupe-ai/run.ts
 
 import { runLoop } from "../../packages/core/src/index.ts";
-import { aiSolver, aiSpecAuthor, type CodeTask } from "../../packages/solver-ai/src/index.ts";
+import {
+  aiCritic,
+  aiSolver,
+  aiSpecAuthor,
+  type CodeTask,
+} from "../../packages/solver-ai/src/index.ts";
 import { FunctionVerifier } from "../../packages/verify-fn/src/index.ts";
 import { makePrinter, printWitness } from "../_shared.ts";
 
@@ -32,6 +37,7 @@ const result = await runLoop<CodeTask, string, string>({
   specAuthor: aiSpecAuthor(),
   solver: aiSolver(),
   verifier: new FunctionVerifier(),
+  critic: aiCritic(),
   negativeControls,
   onEvent: makePrinter({
     authored: "contract authored by the model (spec sees only the task)",

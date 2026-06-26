@@ -97,9 +97,11 @@ ANTHROPIC_API_KEY=… node examples/dedupe-ai/run.ts
 ```
 
 The model writes the property tests *and* the implementation as two independent
-calls — it never sees its own tests. It's built on the Vercel AI SDK, so it's
-provider-agnostic: the default is `claude-opus-4-8`, but pass any AI SDK model to
-swap providers in one line.
+calls — it never sees its own tests. A third independent role, an **adversarial
+critic**, then tries to strengthen the contract after the accept: the solution
+has to survive new properties it never trained against, or the loop reopens. All
+built on the Vercel AI SDK, so it's provider-agnostic: the default is
+`claude-opus-4-8`, but pass any AI SDK model to swap providers in one line.
 
 ## Inside
 
@@ -108,7 +110,7 @@ swap providers in one line.
 | `packages/core`            | the loop and the witness model. zero dependencies.                |
 | `packages/verify-fn`       | verify a function: runs it against property tests in a sandbox.    |
 | `packages/verify-predicate`| verify a data value: runs named predicates in-process.            |
-| `packages/solver-ai`       | a model-backed solver + spec-author (Vercel AI SDK, any provider).|
+| `packages/solver-ai`       | model-backed spec-author, solver & adversarial critic (Vercel AI SDK).|
 | `examples/dedupe`          | the code run above (scripted).                                    |
 | `examples/meal-plan`       | the data run above (scripted).                                    |
 | `examples/dedupe-ai`       | the code run, solved by a real model.                             |
@@ -120,12 +122,14 @@ acceptance composes, how a dishonest checker gets caught — read
 
 ## Status
 
-Early, but past its first real tests. The spine works and the loop closes end to
-end (M0); the core ran a second, structurally different domain — data instead of
-code, in-process instead of sandboxed, with a scored constraint — with **zero
-changes** to `packages/core` (M1); and a real model now drives the loop through a
-provider-agnostic solver (M2). The surface will still move. Next: an adversarial
-critic whose only job is to find the gaps in the success criteria.
+Early, but past its first real tests. The loop closes end to end (M0); the core
+ran a second, structurally different domain — data instead of code, in-process
+instead of sandboxed, with a scored constraint — with **zero changes** to
+`packages/core` (M1); a real model drives the loop through a provider-agnostic
+solver (M2); and an adversarial critic strengthens the contract after each accept,
+so a solution has to survive properties it never trained against (M3). Backed by
+strict type-checking, a `node:test` suite, and CI. The surface will still move —
+next is packaging for publish.
 
 <div align="center">
 <sub>Built in the open. Issues and ideas welcome.</sub>
