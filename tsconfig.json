@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "types": ["node"],
+
+    // Dev-time we run .ts directly via Node's type-stripping, which imports with
+    // explicit .ts extensions. Type-check those in place; tsdown rewrites them at
+    // publish time (M4).
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+
+    // Match what type-stripping requires, and keep imports honest.
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+
+    // Strict-plus. noUncheckedIndexedAccess is deliberate — it catches the
+    // "this lookup might be undefined" class of bug the reviews kept flagging.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+
+    "skipLibCheck": true
+  },
+  "include": ["packages/**/*.ts", "examples/**/*.ts"],
+  "exclude": ["**/node_modules", "**/dist"]
+}

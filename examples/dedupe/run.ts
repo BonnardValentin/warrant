@@ -6,7 +6,7 @@
 
 import { runLoop, type Solver, type SpecAuthor } from "../../packages/core/src/index.ts";
 import { FunctionVerifier } from "../../packages/verify-fn/src/index.ts";
-import { makePrinter, printWitness } from "../_shared.ts";
+import { makePrinter, nth, printWitness } from "../_shared.ts";
 
 type Task = { name: string; signature: string; description: string };
 
@@ -70,7 +70,7 @@ const ATTEMPTS = [
 ];
 const solver: Solver<Task, string> = {
   async solve(_task, attempt) {
-    return ATTEMPTS[Math.min(attempt, ATTEMPTS.length - 1)];
+    return nth(ATTEMPTS, attempt);
   },
 };
 

@@ -7,7 +7,7 @@
 
 import { runLoop, type Solver, type SpecAuthor } from "../../packages/core/src/index.ts";
 import { type Predicate, PredicateVerifier } from "../../packages/verify-predicate/src/index.ts";
-import { makePrinter, printWitness } from "../_shared.ts";
+import { makePrinter, nth, printWitness } from "../_shared.ts";
 
 type Day = { day: string; main: string; calories: number };
 type Plan = { days: Day[] };
@@ -105,7 +105,7 @@ const ATTEMPTS: Plan[] = [
 
 const solver: Solver<Task, Plan> = {
   async solve(_task, attempt) {
-    return ATTEMPTS[Math.min(attempt, ATTEMPTS.length - 1)];
+    return nth(ATTEMPTS, attempt);
   },
 };
 

@@ -35,7 +35,7 @@ function solverFrom(attempts: string[], seen?: (Feedback | undefined)[]): Solver
   return {
     async solve(_t, i, fb) {
       seen?.push(fb);
-      return attempts[Math.min(i, attempts.length - 1)];
+      return attempts[Math.min(i, attempts.length - 1)] ?? "";
     },
   };
 }

@@ -87,7 +87,7 @@ export class FunctionVerifier implements Verifier<string, string> {
           claims: [],
         };
       }
-      const json = res.stdout.slice(idx + SENTINEL.length).split("\n")[0];
+      const json = res.stdout.slice(idx + SENTINEL.length).split("\n")[0] ?? "";
       let report: Report[];
       try {
         report = JSON.parse(json) as Report[];

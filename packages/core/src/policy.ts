@@ -28,7 +28,7 @@ const ORDER: Assurance[] = ["judged", "tested", "proven"];
 export function assuranceOf(claims: Claim[]): Assurance {
   const required = claims.filter((c) => c.severity === "required");
   if (required.length === 0) return "none";
-  return ORDER[Math.min(...required.map((c) => RANK[c.evidence.kind]))];
+  return ORDER[Math.min(...required.map((c) => RANK[c.evidence.kind]))] ?? "none";
 }
 
 export function standard(theta = 0.9, quorum: Quorum = DEFAULT_QUORUM): Policy {

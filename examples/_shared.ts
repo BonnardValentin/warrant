@@ -42,6 +42,14 @@ export function makePrinter(labels: Labels = {}): (e: Event) => void {
   };
 }
 
+// Pick the i-th item, clamped to the last (for scripted attempt lists). Typed to
+// return T (not T | undefined) so call sites stay clean under strict indexing.
+export function nth<T>(arr: readonly T[], i: number): T {
+  const v = arr[Math.min(Math.max(i, 0), arr.length - 1)];
+  if (v === undefined) throw new Error("nth: empty array");
+  return v;
+}
+
 export function printWitness(w: Witness): void {
   console.log("\nfinal witness:");
   for (const c of w.claims) {

@@ -22,7 +22,7 @@ const CODE = z.object({ code: z.string() });
 function unfence(s: string): string {
   const t = s.trim();
   const m = t.match(/^```[a-zA-Z0-9]*\n([\s\S]*?)\n?```$/);
-  return (m ? m[1] : t).trim();
+  return (m?.[1] ?? t).trim();
 }
 
 const defaultModel = (): LanguageModel => anthropic("claude-opus-4-8");
