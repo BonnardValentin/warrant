@@ -14,7 +14,9 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - run: npm ci
+      # npm install (not ci): tsdown's native bindings have platform-specific
+      # optional deps that a single-platform lockfile doesn't fully capture.
+      - run: npm install --no-audit --no-fund
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
