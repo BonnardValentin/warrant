@@ -72,12 +72,11 @@ twice and quarantined if it disagrees with itself.
 
 ## Try it
 
-Node 22.6+ (it runs the TypeScript directly, no build step). The first two need
-no install:
+Node 22.6+ (it runs TypeScript from source — no build step). After `npm install`:
 
 ```
-node examples/dedupe/run.ts      # verify code   (subprocess, property tests)
-node examples/meal-plan/run.ts   # verify data   (in-process, with a scored constraint)
+npm run demo        # verify code   (subprocess, property tests)
+npm run demo:meal   # verify data   (in-process, with a scored constraint)
 ```
 
 The first asks for a humble function — remove duplicates from a list, keep the
@@ -89,11 +88,10 @@ no changes to `packages/core`. In each you'll watch it write the criteria, rejec
 a deliberately-broken stand-in to prove those criteria bite, reject the first real
 attempt and say exactly why, then accept the second with an assurance level.
 
-To solve with a real model instead of scripted attempts (`npm install` first, set
-a key):
+To solve with a real model instead of scripted attempts (set a key first):
 
 ```
-ANTHROPIC_API_KEY=… node examples/dedupe-ai/run.ts
+ANTHROPIC_API_KEY=… npm run demo:ai
 ```
 
 The model writes the property tests *and* the implementation as two independent
@@ -110,7 +108,7 @@ built on the Vercel AI SDK, so it's provider-agnostic: the default is
 | `packages/core`            | the loop and the witness model. zero dependencies.                |
 | `packages/verify-fn`       | verify a function: runs it against property tests in a sandbox.    |
 | `packages/verify-predicate`| verify a data value: runs named predicates in-process.            |
-| `packages/solver-ai`       | model-backed spec-author, solver & adversarial critic (Vercel AI SDK).|
+| `packages/agents`          | backend-agnostic spec-author, solver & critic (`/complete` zero-SDK · `/ai-sdk` adapter).|
 | `examples/dedupe`          | the code run above (scripted).                                    |
 | `examples/meal-plan`       | the data run above (scripted).                                    |
 | `examples/dedupe-ai`       | the code run, solved by a real model.                             |

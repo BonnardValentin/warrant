@@ -7,19 +7,14 @@
 //   ANTHROPIC_API_KEY=… node examples/dedupe-ai/run.ts
 
 import { anthropic } from "@ai-sdk/anthropic";
-import {
-  aiCritic,
-  aiSolver,
-  aiSpecAuthor,
-  type CodeTask,
-} from "@warrant/agents/ai-sdk";
+import { aiCritic, aiSolver, aiSpecAuthor, type CodeTask } from "@warrant/agents/ai-sdk";
 import { runLoop } from "@warrant/core";
 import { FunctionVerifier } from "@warrant/verify-fn";
 import { makePrinter, printWitness } from "../_shared.ts";
 
 if (!process.env.ANTHROPIC_API_KEY) {
   console.log(
-    "Set ANTHROPIC_API_KEY to run this example, or edit it to use a different AI SDK provider."
+    "Set ANTHROPIC_API_KEY to run this example, or edit it to use a different AI SDK provider.",
   );
   process.exit(0);
 }
@@ -27,8 +22,7 @@ if (!process.env.ANTHROPIC_API_KEY) {
 const model = anthropic("claude-opus-4-8"); // ← the only provider-specific line
 
 const task: CodeTask = {
-  description:
-    "Remove duplicates from an array, preserving the order of first appearance.",
+  description: "Remove duplicates from an array, preserving the order of first appearance.",
   functionName: "dedupe",
 };
 
@@ -51,7 +45,7 @@ const result = await runLoop<CodeTask, string, string>({
 
 if (result.status === "accepted") {
   console.log(
-    `\nclosed loop in ${result.attempts} attempts — assurance: ${result.decision?.assurance}\n`
+    `\nclosed loop in ${result.attempts} attempts — assurance: ${result.decision?.assurance}\n`,
   );
   console.log(`    ${(result.artifact ?? "").trim()}`);
 } else {

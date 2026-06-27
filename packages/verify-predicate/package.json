@@ -3,10 +3,15 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "@warrant/source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
   "dependencies": { "@warrant/core": "*" },
-  "files": ["dist"],
-  "publishConfig": {
-    "exports": { ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs" } }
-  }
+  "files": ["dist"]
 }

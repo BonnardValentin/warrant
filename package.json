@@ -10,9 +10,10 @@
     "node": ">=22.6"
   },
   "scripts": {
-    "demo": "node examples/dedupe/run.ts",
-    "demo:ai": "node --env-file=.env examples/dedupe-ai/run.ts",
-    "test": "node --test \"packages/**/test/*.test.ts\"",
+    "demo": "node --conditions=@warrant/source examples/dedupe/run.ts",
+    "demo:meal": "node --conditions=@warrant/source examples/meal-plan/run.ts",
+    "demo:ai": "node --conditions=@warrant/source --env-file=.env examples/dedupe-ai/run.ts",
+    "test": "node --conditions=@warrant/source --test \"packages/**/test/*.test.ts\"",
     "typecheck": "tsc --noEmit",
     "build": "tsdown",
     "lint": "biome check",

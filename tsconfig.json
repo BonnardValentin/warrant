@@ -6,6 +6,11 @@
     "moduleResolution": "nodenext",
     "types": ["node"],
 
+    // Resolve @warrant/* to source in dev (the exports' "@warrant/source"
+    // condition). At runtime, scripts pass `node --conditions=@warrant/source`;
+    // published consumers get dist via the default conditions.
+    "customConditions": ["@warrant/source"],
+
     // Dev-time we run .ts directly via Node's type-stripping, which imports with
     // explicit .ts extensions. Type-check those in place; tsdown rewrites them at
     // publish time (M4).

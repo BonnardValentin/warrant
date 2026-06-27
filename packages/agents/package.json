@@ -3,21 +3,34 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
-    ".": "./src/index.ts",
-    "./complete": "./src/complete.ts",
-    "./ai-sdk": "./src/ai-sdk.ts"
+    ".": {
+      "@warrant/source": "./src/index.ts",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./complete": {
+      "@warrant/source": "./src/complete.ts",
+      "types": "./dist/complete.d.mts",
+      "import": "./dist/complete.mjs"
+    },
+    "./ai-sdk": {
+      "@warrant/source": "./src/ai-sdk.ts",
+      "types": "./dist/ai-sdk.d.mts",
+      "import": "./dist/ai-sdk.mjs"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "complete": ["./dist/complete.d.mts"],
+      "ai-sdk": ["./dist/ai-sdk.d.mts"]
+    }
   },
   "dependencies": {
     "@warrant/core": "*",
     "ai": "^7.0.2"
   },
-  "files": ["dist"],
-  "publishConfig": {
-    "exports": {
-      ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs" },
-      "./complete": { "types": "./dist/complete.d.mts", "import": "./dist/complete.mjs" },
-      "./ai-sdk": { "types": "./dist/ai-sdk.d.mts", "import": "./dist/ai-sdk.mjs" }
-    }
-  }
+  "files": ["dist"]
 }

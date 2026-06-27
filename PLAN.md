@@ -242,29 +242,34 @@ runs **both** `verify-fn` and `verify-predicate` unchanged.
   (data, in-process, with a scored claim) ran through the **identical** `runLoop`
   with an empty diff on `packages/core`. The abstraction held — code vs data,
   subprocess vs in-process, binary vs scored evidence all compose unchanged.
-- **M2 — real model. ✅ DONE (live run pending a key).** `solver-ai` — a
-  model-backed SpecAuthor + Solver on the **Vercel AI SDK** (provider-agnostic;
-  `generateObject` + Zod), default `claude-opus-4-8`, swappable in one line. Core
-  stays SDK-free; the dependency lives only in this package. `examples/dedupe-ai`
-  wires it to the loop and key-gates. (Solver chosen over a vendor SDK so the
-  reference solver isn't Anthropic-locked; raw-SDK solvers remain trivial to write
-  against the `Solver` interface for provider-specific features.)
+- **M2 — real model. ✅ DONE (verified live on claude-opus-4-8).** Model-backed
+  SpecAuthor + Solver in **`@warrant/agents`**, built on a minimal `Complete`
+  primitive (text in/out) so it's backend-agnostic: `/complete` is zero-SDK,
+  `/ai-sdk` is a provider-NEUTRAL Vercel AI SDK adapter (you pass the model — no
+  provider is bundled). Core stays SDK-free. `examples/dedupe-ai` wires it and
+  key-gates. Raw-SDK or non-LLM solvers remain trivial against the `Solver`
+  interface.
 - **M3 — adversarial critic (third role). ✅ DONE.** A `Critic` role (blind to
   the artifact) runs after an accept and proposes a *strengthened* contract; the
   accepted artifact must survive it, or the loop reopens with the stronger
-  contract. `aiCritic` in `solver-ai`; integrated into `runLoop` (bounded by
+  contract. `aiCritic` in `@warrant/agents`; integrated into `runLoop` (bounded by
   `maxCriticRounds`, fail-safe if the critic throws). Live: the model's dedupe
   survived two strengthening rounds; unit tests cover the break-and-recover path.
   This is what starts making the witness hard to game.
 - **M4 — package + docs. ✅ DONE (publish flip pending).** Cross-package imports
-  switched to `@warrant/*` (real dependency graph; resolves to `src` in dev via
-  workspace links, to `dist` when published via `publishConfig.exports`). tsdown
-  builds every package to dual ESM + `.d.ts` (`npm run build`, in CI). Agnosticism
-  pass folded in: a `Complete` primitive makes the role layer backend-agnostic
-  (`@warrant/agents/complete` is zero-SDK; `/ai-sdk` is one adapter), and a test
-  proves the core runs over non-string domain types. Per-package READMEs +
-  changesets. Remaining before an actual publish: drop `private`, add `publint` +
-  `@arethetypeswrong/cli` to CI, and a "write your own verifier" guide.
+  switched to `@warrant/*` (real dependency graph). Dual dev/publish resolution via
+  a **custom `@warrant/source` export condition** (dev passes
+  `node --conditions=@warrant/source` + tsconfig `customConditions` → `src`;
+  consumers get `dist` from the default conditions). NB: `publishConfig.exports`
+  was tried first but **npm doesn't apply it** (pnpm-only) — `@arethetypeswrong/cli`
+  caught it; the condition approach replaced it and attw now resolves clean
+  (node16/bundler 🟢; the ESM-only `⚠️` for CommonJS consumers is expected). tsdown
+  builds every package to ESM + `.d.ts` (`npm run build`, in CI); `agents` adds
+  `typesVersions` for legacy-TS subpath resolution. Agnosticism pass folded in: a
+  `Complete` primitive makes the role layer backend-agnostic. Per-package READMEs +
+  changesets. Remaining before publish: drop `private`, add `publint`/attw to CI
+  (ignore the `cjs-resolves-to-esm` rule — ESM-only), and a "write your own
+  verifier" guide.
 
 The accept/reject signal is a reward a learning loop can train on — turning
 "acted" into a gradient. That self-improving verifier loop is a big part of why
