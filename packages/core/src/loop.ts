@@ -98,6 +98,12 @@ function buildFeedback(
   };
 }
 
+// All failing claim ids (incl. held-out ones) — the stall key is computed over
+// these, so hidden progress isn't mistaken for a stall.
+function failedIds(w: Witness, quorum: Quorum): Set<string> {
+  return new Set(w.claims.filter((c) => claimStatus(c, quorum) === "fail").map((c) => c.id));
+}
+
 // Determinism is VERIFIED, not trusted: the first time we use a deterministic
 // verifier in this run, run it twice and quarantine it as inconclusive if the two
 // witnesses disagree. A verifier stable on first use is trusted thereafter, so we
@@ -181,6 +187,15 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
     }
   };
 
+  // A critic's proposal is adopted only if it stays SOUND — still rejects every
+  // negative control — so a weaker or malformed contract can't slip in.
+  const controlsReject = async (c: C): Promise<boolean> => {
+    for (const control of cfg.negativeControls ?? []) {
+      if (decide(await verify(control, c, false), policy).verdict !== "reject") return false;
+    }
+    return true;
+  };
+
   // Negative controls: the contract MUST actively reject deliberately-wrong
   // artifacts. Anything short of a "reject" verdict (including inconclusive) means
   // we can't trust the contract.
@@ -238,19 +253,14 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
       failing = new Set(["did_not_run"]);
     } else {
       d = decide(w, policy);
-      emit({ t: "attempt.verdict", n, decision: d });
-
-      if (d.verdict === "inconclusive") {
-        // genuine ambiguity (e.g. a quarantined nondeterministic verifier) → escalate
-        emit({ t: "loop.done", status: "inconclusive" });
-        return { status: "inconclusive", artifact, witness: w, decision: d, attempts: n };
-      }
-
       let outcome = w;
+
       if (d.verdict === "accept") {
         // Adversarial critic: an accept must survive the contract being strengthened.
-        // The critic sees task + contract (never the artifact); the strengthened
-        // contract is adopted going forward whether or not the artifact survives it.
+        // The critic sees task + contract (never the artifact). A proposal is adopted
+        // only if it stays SOUND (controlsReject), then re-verified WITH the replay
+        // check — so a weaker, malformed, or nondeterministic suite can't manufacture
+        // a false accept; it's simply ignored, leaving the original valid accept.
         for (let round = 1; cfg.critic && round <= maxCriticRounds; round++) {
           let augmented: C | null;
           try {
@@ -259,27 +269,31 @@ export async function runLoop<T, C, A>(cfg: RunConfig<T, C, A>): Promise<LoopRes
             break; // a flaky critic must not turn a real accept into a non-accept
           }
           if (augmented == null) break; // converged: the critic found no gap
+          if (!(await controlsReject(augmented))) break; // unsound proposal → ignore it
           contract = augmented;
-          outcome = await verify(artifact, contract, false);
+          outcome = await verify(artifact, contract, true);
           d = decide(outcome, policy);
           emit({ t: "critic.round", round, survived: d.verdict === "accept" });
           if (d.verdict !== "accept") break; // the spec was too weak — not really an accept
         }
-        if (d.verdict === "accept") {
-          lastWitness = outcome;
-          lastDecision = d;
-          emit({ t: "loop.done", status: "accepted" });
-          return { status: "accepted", artifact, witness: outcome, decision: d, attempts: n };
-        }
       }
 
-      // reject (original, or the critic broke a tentative accept) → feedback + stall
-      // on the FULL failing set (incl. held-out claims), so hidden progress isn't a stall.
+      // One verdict per attempt: the FINAL decision, after any critic challenge.
+      emit({ t: "attempt.verdict", n, decision: d });
       lastWitness = outcome;
+
+      if (d.verdict === "accept") {
+        emit({ t: "loop.done", status: "accepted" });
+        return { status: "accepted", artifact, witness: outcome, decision: d, attempts: n };
+      }
+      if (d.verdict === "inconclusive") {
+        // genuine ambiguity (quarantined verifier, incl. a nondeterministic critic suite) → escalate
+        emit({ t: "loop.done", status: "inconclusive" });
+        return { status: "inconclusive", artifact, witness: outcome, decision: d, attempts: n };
+      }
+      // reject (original, or the critic broke a tentative accept) → feedback + stall
       feedback = buildFeedback(n, outcome, prevFailed, quorum);
-      failing = new Set(
-        outcome.claims.filter((c) => claimStatus(c, quorum) === "fail").map((c) => c.id),
-      );
+      failing = failedIds(outcome, quorum);
     }
     lastDecision = d;
 

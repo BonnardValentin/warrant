@@ -27,6 +27,21 @@ function unfence(s: string): string {
 
 const defaultModel = (): LanguageModel => anthropic("claude-opus-4-8");
 
+// The exact harness contract a property suite must follow. Shared by the
+// spec-author and the critic so they can never drift out of sync (a mismatch
+// makes the verifier unable to run the suite).
+const SUITE_RULES =
+  "Harness contract — output JavaScript source with one function `properties()` returning an array " +
+  "of { id: string, severity: 'required' | 'scored', test: () => void }:\n" +
+  "- `test` takes NO arguments.\n" +
+  "- Inside `test`, call the function under test by its name (already defined in scope); do NOT " +
+  "redeclare, import, or require it.\n" +
+  "- Check with `assert(condition, message)` — `assert` is ALREADY a global function; do NOT import, " +
+  "require, or redefine it. On violation it throws; include a clear message with a counterexample.\n" +
+  "- `severity` must be exactly the string 'required' or 'scored'.\n" +
+  "- Use the in-scope integer `__seed` for deterministic randomized inputs across many cases.\n" +
+  "- No imports, no top-level code other than function declarations, no markdown fences.";
+
 // The spec-author sees ONLY the task. It returns JS source defining the property
 // tests the verify-fn harness runs (`properties()`, `assert`, and `__seed` are in
 // scope when the harness executes them).
@@ -39,18 +54,7 @@ export function aiSpecAuthor(model: LanguageModel = defaultModel()): SpecAuthor<
         system:
           "You author property-based tests that pin down what a correct solution must satisfy. " +
           "You will NOT see the implementation — write the properties from the spec alone.\n\n" +
-          "Output JavaScript source with one function `properties()` returning an array of " +
-          "{ id: string, severity: 'required' | 'scored', test: () => void }. Strict contract:\n" +
-          "- `test` takes NO arguments.\n" +
-          "- Inside `test`, call the function under test by its name (already defined in scope); " +
-          "do NOT redeclare, import, or require it.\n" +
-          "- Check with `assert(condition, message)` — `assert` is ALREADY a global function; " +
-          "do NOT import, require, or redefine it. On violation `assert` throws; include a clear " +
-          "message with a counterexample.\n" +
-          "- `severity` must be exactly the string 'required' or 'scored'.\n" +
-          "- Use the in-scope integer `__seed` for deterministic randomized inputs across many cases.\n" +
-          "- No imports, no top-level code other than function declarations, no markdown fences.\n\n" +
-          "Example shape:\n" +
+          `${SUITE_RULES}\n\nExample shape:\n` +
           "function properties() {\n" +
           "  return [\n" +
           `    { id: "returns_array", severity: "required", test: () => { assert(Array.isArray(${task.functionName}([1,2,2])), "must return an array"); } },\n` +
@@ -108,12 +112,9 @@ export function aiCritic(model: LanguageModel = defaultModel()): Critic<CodeTask
           "and the CURRENT suite — never any implementation. Find ONE important property the suite " +
           "MISSES: an input class, edge case, or invariant that a plausible-but-wrong solution could " +
           "satisfy the current suite while still violating. If you find one, return foundGap=true and " +
-          "`code` = the FULL suite (every existing property UNCHANGED, plus your new one) in the exact " +
-          "same format and harness contract (one `properties()` returning { id, severity, test }; each " +
-          "`test` is zero-arg, calls the function by name, uses the global `assert(cond, msg)`, severity " +
-          "is exactly 'required' or 'scored', deterministic inputs from the in-scope `__seed`; no imports, " +
-          "no fences). Do NOT weaken or remove existing properties. If the suite already covers the task " +
-          "thoroughly, return foundGap=false and code=''.",
+          "`code` = the FULL suite (every existing property UNCHANGED, plus your new one). Do NOT weaken " +
+          "or remove existing properties. If the suite already covers the task thoroughly, return " +
+          `foundGap=false and code=''.\n\n${SUITE_RULES}`,
         prompt: `Task: ${task.description}\nFunction under test: \`${task.functionName}\`.\nCurrent suite:\n\n${contract}`,
       });
       return object.foundGap ? unfence(object.code) : null;
