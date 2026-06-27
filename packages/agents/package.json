@@ -9,7 +9,6 @@
     "./ai-sdk": "./src/ai-sdk.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.0",
     "@warrant/core": "*",
     "ai": "^7.0.2"
   },
