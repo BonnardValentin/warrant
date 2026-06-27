@@ -1,36 +1,28 @@
-// @warrant/solver-ai — a model-backed SpecAuthor + Solver for the CODE domain,
-// built on the Vercel AI SDK so it's provider-agnostic. Pass any AI SDK model; it
-// defaults to Anthropic claude-opus-4-8. The model is an implementation detail of
-// these two roles — warrant's core imports no SDK — and you can always implement
-// Solver/SpecAuthor yourself with a raw provider SDK for full control.
+// Generic role builders for the CODE domain (an artifact that is a function
+// defined as JS source), parameterized by ONE minimal primitive: a text
+// completion. ZERO dependencies — back it with any LLM SDK, a local model, a raw
+// fetch, a stub, or a human at a keyboard. Bring a `Complete`; get a SpecAuthor,
+// Solver, and Critic that plug straight into @warrant/core's runLoop.
 
-import { anthropic } from "@ai-sdk/anthropic";
-import type { LanguageModel } from "ai";
-import { generateObject } from "ai";
-import { z } from "zod";
 import type { Critic, Solver, SpecAuthor } from "../../core/src/index.ts";
 
-export type CodeTask = {
-  description: string;
-  functionName: string;
-};
+/** The one thing a backend must provide: turn a (system, prompt) into text. */
+export type CompleteRequest = { system: string; prompt: string };
+export type Complete = (req: CompleteRequest) => Promise<string>;
 
-const CODE = z.object({ code: z.string() });
+export type CodeTask = { description: string; functionName: string };
 
-// Models often wrap code in a markdown fence despite instructions not to; strip
-// it so a formatting slip doesn't turn into an un-runnable artifact.
+// Strip a markdown fence if the backend wrapped the output in one.
 function unfence(s: string): string {
   const t = s.trim();
   const m = t.match(/^```[a-zA-Z0-9]*\n([\s\S]*?)\n?```$/);
   return (m?.[1] ?? t).trim();
 }
 
-const defaultModel = (): LanguageModel => anthropic("claude-opus-4-8");
-
 // The exact harness contract a property suite must follow. Shared by the
-// spec-author and the critic so they can never drift out of sync (a mismatch
-// makes the verifier unable to run the suite).
-const SUITE_RULES =
+// spec-author and the critic so they can never drift (a mismatch would make the
+// verifier unable to run the suite).
+export const SUITE_RULES =
   "Harness contract — output JavaScript source with one function `properties()` returning an array " +
   "of { id: string, severity: 'required' | 'scored', test: () => void }:\n" +
   "- `test` takes NO arguments.\n" +
@@ -42,15 +34,11 @@ const SUITE_RULES =
   "- Use the in-scope integer `__seed` for deterministic randomized inputs across many cases.\n" +
   "- No imports, no top-level code other than function declarations, no markdown fences.";
 
-// The spec-author sees ONLY the task. It returns JS source defining the property
-// tests the verify-fn harness runs (`properties()`, `assert`, and `__seed` are in
-// scope when the harness executes them).
-export function aiSpecAuthor(model: LanguageModel = defaultModel()): SpecAuthor<CodeTask, string> {
+// Sees ONLY the task. Returns the property-test suite the verify-fn harness runs.
+export function makeSpecAuthor(complete: Complete): SpecAuthor<CodeTask, string> {
   return {
     async author(task) {
-      const { object } = await generateObject({
-        model,
-        schema: CODE,
+      const code = await complete({
         system:
           "You author property-based tests that pin down what a correct solution must satisfy. " +
           "You will NOT see the implementation — write the properties from the spec alone.\n\n" +
@@ -62,14 +50,14 @@ export function aiSpecAuthor(model: LanguageModel = defaultModel()): SpecAuthor<
           "}",
         prompt: `Task: ${task.description}\nThe function under test is named \`${task.functionName}\`.`,
       });
-      return unfence(object.code);
+      return unfence(code);
     },
   };
 }
 
-// The solver sees ONLY the task and the prior witness's failed claims — never the
-// spec source — so it cannot tailor code to the exact tests.
-export function aiSolver(model: LanguageModel = defaultModel()): Solver<CodeTask, string> {
+// Sees ONLY the task and the prior witness's failed claims — never the suite —
+// so it cannot tailor code to the exact tests.
+export function makeSolver(complete: Complete): Solver<CodeTask, string> {
   return {
     async solve(task, _attempt, feedback) {
       let prompt =
@@ -82,42 +70,33 @@ export function aiSolver(model: LanguageModel = defaultModel()): Solver<CodeTask
           `failed (you are NOT shown the tests themselves):\n${failed}\n` +
           `Keep what already passed (${feedback.held.join(", ") || "none"}). Fix the failures.`;
       }
-      const { object } = await generateObject({
-        model,
-        schema: CODE,
+      const code = await complete({
         system:
           "You write correct, self-contained JavaScript. Output ONLY the implementation source " +
           "defining the requested function — no prose, no tests, no imports, no markdown fences.",
         prompt,
       });
-      return unfence(object.code);
+      return unfence(code);
     },
   };
 }
 
-const CRITIQUE = z.object({ foundGap: z.boolean(), code: z.string() });
-
-// The critic sees the task and the current test suite — never an implementation.
-// It hunts for a property the suite misses and returns the FULL strengthened suite,
-// or null when it finds no gap. Returning the whole suite keeps the core's merge
-// trivial (it just swaps the contract).
-export function aiCritic(model: LanguageModel = defaultModel()): Critic<CodeTask, string> {
+// Sees the task and the current suite — never an implementation. Returns the FULL
+// strengthened suite, or null (the backend says "NONE") when it finds no gap.
+export function makeCritic(complete: Complete): Critic<CodeTask, string> {
   return {
     async propose(task, contract) {
-      const { object } = await generateObject({
-        model,
-        schema: CRITIQUE,
+      const out = await complete({
         system:
           "You are an adversarial reviewer of a property-test SUITE for a function. You see the task " +
           "and the CURRENT suite — never any implementation. Find ONE important property the suite " +
-          "MISSES: an input class, edge case, or invariant that a plausible-but-wrong solution could " +
-          "satisfy the current suite while still violating. If you find one, return foundGap=true and " +
-          "`code` = the FULL suite (every existing property UNCHANGED, plus your new one). Do NOT weaken " +
-          "or remove existing properties. If the suite already covers the task thoroughly, return " +
-          `foundGap=false and code=''.\n\n${SUITE_RULES}`,
+          "MISSES: an input class, edge case, or invariant a plausible-but-wrong solution could satisfy " +
+          "the current suite while still violating. If the suite already covers the task thoroughly, " +
+          "output exactly NONE. Otherwise output the FULL suite — every existing property UNCHANGED, " +
+          `plus your new one. Do NOT weaken or remove existing properties.\n\n${SUITE_RULES}`,
         prompt: `Task: ${task.description}\nFunction under test: \`${task.functionName}\`.\nCurrent suite:\n\n${contract}`,
       });
-      return object.foundGap ? unfence(object.code) : null;
+      return /^NONE\b/i.test(out.trim()) ? null : unfence(out);
     },
   };
 }

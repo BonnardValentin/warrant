@@ -146,6 +146,43 @@ test("rejected-exhausted keeps the last artifact", async () => {
   assert.equal(r.artifact, "art2");
 });
 
+// --- agnosticism: the core assumes nothing about the domain types ---
+
+test("the loop is generic over non-string Task / Contract / Artifact types", async () => {
+  type NumTask = { target: number };
+  type NumContract = { min: number };
+  type NumArtifact = { value: number };
+  const r = await runLoop<NumTask, NumContract, NumArtifact>({
+    task: { target: 42 },
+    specAuthor: {
+      async author(t) {
+        return { min: t.target };
+      },
+    },
+    solver: {
+      async solve() {
+        return { value: 50 };
+      },
+    },
+    verifier: {
+      cls: "deterministic",
+      verify: (a, c) =>
+        Promise.resolve({
+          schema: "warrant/v1",
+          claims: [
+            {
+              id: "meets_min",
+              severity: "required",
+              evidence: { kind: "binary", ok: a.value >= c.min },
+            },
+          ],
+        }),
+    },
+  });
+  assert.equal(r.status, "accepted");
+  assert.deepEqual(r.artifact, { value: 50 });
+});
+
 // --- critic (M3) ---
 
 // a verifier whose verdict depends on BOTH the artifact and the contract

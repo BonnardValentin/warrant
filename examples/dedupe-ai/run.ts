@@ -1,18 +1,18 @@
 // examples/dedupe-ai — M2: the dedupe loop solved by a REAL model.
 // Same loop, same verifier as examples/dedupe — but the spec-author and solver
-// are now model-backed (@warrant/solver-ai, Vercel AI SDK). Default model is
+// are now model-backed (@warrant/agents, Vercel AI SDK). Default model is
 // Anthropic claude-opus-4-8; pass any AI SDK provider to aiSolver/aiSpecAuthor to
 // swap (e.g. openai("…")). Needs an API key for the chosen provider.
 //
 //   ANTHROPIC_API_KEY=… node examples/dedupe-ai/run.ts
 
-import { runLoop } from "../../packages/core/src/index.ts";
 import {
   aiCritic,
   aiSolver,
   aiSpecAuthor,
   type CodeTask,
-} from "../../packages/solver-ai/src/index.ts";
+} from "../../packages/agents/src/ai-sdk.ts";
+import { runLoop } from "../../packages/core/src/index.ts";
 import { FunctionVerifier } from "../../packages/verify-fn/src/index.ts";
 import { makePrinter, printWitness } from "../_shared.ts";
 
