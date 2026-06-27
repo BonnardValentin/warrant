@@ -98,7 +98,7 @@ The model writes the property tests *and* the implementation as two independent
 calls — it never sees its own tests. A third independent role, an **adversarial
 critic**, then tries to strengthen the contract after the accept: the solution
 has to survive new properties it never trained against, or the loop reopens. All
-built on the Vercel AI SDK, so it's provider-agnostic: the default is
+built on the Vercel AI SDK, so it's provider-agnostic: this example wires up
 `claude-opus-4-8`, but pass any AI SDK model to swap providers in one line.
 
 ## Inside
