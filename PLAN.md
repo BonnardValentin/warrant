@@ -256,8 +256,15 @@ runs **both** `verify-fn` and `verify-predicate` unchanged.
   `maxCriticRounds`, fail-safe if the critic throws). Live: the model's dedupe
   survived two strengthening rounds; unit tests cover the break-and-recover path.
   This is what starts making the witness hard to game.
-- **M4 — package + docs.** Publishable `@warrant/*`, README per package, one
-  "write your own verifier in 30 lines" guide.
+- **M4 — package + docs. ✅ DONE (publish flip pending).** Cross-package imports
+  switched to `@warrant/*` (real dependency graph; resolves to `src` in dev via
+  workspace links, to `dist` when published via `publishConfig.exports`). tsdown
+  builds every package to dual ESM + `.d.ts` (`npm run build`, in CI). Agnosticism
+  pass folded in: a `Complete` primitive makes the role layer backend-agnostic
+  (`@warrant/agents/complete` is zero-SDK; `/ai-sdk` is one adapter), and a test
+  proves the core runs over non-string domain types. Per-package READMEs +
+  changesets. Remaining before an actual publish: drop `private`, add `publint` +
+  `@arethetypeswrong/cli` to CI, and a "write your own verifier" guide.
 
 The accept/reject signal is a reward a learning loop can train on — turning
 "acted" into a gradient. That self-improving verifier loop is a big part of why

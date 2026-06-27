@@ -4,7 +4,7 @@
 // fetch, a stub, or a human at a keyboard. Bring a `Complete`; get a SpecAuthor,
 // Solver, and Critic that plug straight into @warrant/core's runLoop.
 
-import type { Critic, Solver, SpecAuthor } from "../../core/src/index.ts";
+import type { Critic, Solver, SpecAuthor } from "@warrant/core";
 
 /** The one thing a backend must provide: turn a (system, prompt) into text. */
 export type CompleteRequest = { system: string; prompt: string };

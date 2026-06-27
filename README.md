@@ -128,8 +128,11 @@ instead of sandboxed, with a scored constraint — with **zero changes** to
 `packages/core` (M1); a real model drives the loop through a provider-agnostic
 solver (M2); and an adversarial critic strengthens the contract after each accept,
 so a solution has to survive properties it never trained against (M3). Backed by
-strict type-checking, a `node:test` suite, and CI. The surface will still move —
-next is packaging for publish.
+strict type-checking, a `node:test` suite, and CI. The role layer is
+backend-agnostic — `@warrant/agents/complete` needs no SDK; bring any LLM, a local
+model, a raw fetch, a stub, or a human (M4). Packages build to dual ESM + `.d.ts`
+via tsdown with a real `@warrant/*` dependency graph; the publish flip (drop
+`private`, add publint/attw) is the only thing left.
 
 <div align="center">
 <sub>Built in the open. Issues and ideas welcome.</sub>

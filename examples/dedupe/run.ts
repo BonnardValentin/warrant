@@ -4,8 +4,8 @@
 //
 //   node examples/dedupe/run.ts
 
-import { runLoop, type Solver, type SpecAuthor } from "../../packages/core/src/index.ts";
-import { FunctionVerifier } from "../../packages/verify-fn/src/index.ts";
+import { runLoop, type Solver, type SpecAuthor } from "@warrant/core";
+import { FunctionVerifier } from "@warrant/verify-fn";
 import { makePrinter, nth, printWitness } from "../_shared.ts";
 
 type Task = { name: string; signature: string; description: string };

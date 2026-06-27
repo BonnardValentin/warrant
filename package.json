@@ -14,12 +14,15 @@
     "demo:ai": "node --env-file=.env examples/dedupe-ai/run.ts",
     "test": "node --test \"packages/**/test/*.test.ts\"",
     "typecheck": "tsc --noEmit",
+    "build": "tsdown",
     "lint": "biome check",
     "format": "biome check --write"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.1",
+    "@changesets/cli": "^2.31.0",
     "@types/node": "^26.0.1",
+    "tsdown": "^0.22.3",
     "typescript": "^6.0.3"
   }
 }

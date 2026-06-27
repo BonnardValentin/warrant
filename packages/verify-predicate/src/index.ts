@@ -4,8 +4,7 @@
 // code vs data, subprocess vs in-process, binary vs scored evidence — all run
 // through the identical runLoop, unchanged.
 
-import type { Verifier } from "../../core/src/verifier.ts";
-import type { Claim, Severity, Witness } from "../../core/src/witness.ts";
+import type { Claim, Severity, Verifier, Witness } from "@warrant/core";
 
 // A binary predicate throws on failure; a score predicate returns a number in [0,1].
 export type Predicate<A> =

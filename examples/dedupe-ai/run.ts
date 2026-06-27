@@ -6,14 +6,9 @@
 //
 //   ANTHROPIC_API_KEY=… node examples/dedupe-ai/run.ts
 
-import {
-  aiCritic,
-  aiSolver,
-  aiSpecAuthor,
-  type CodeTask,
-} from "../../packages/agents/src/ai-sdk.ts";
-import { runLoop } from "../../packages/core/src/index.ts";
-import { FunctionVerifier } from "../../packages/verify-fn/src/index.ts";
+import { aiCritic, aiSolver, aiSpecAuthor, type CodeTask } from "@warrant/agents/ai-sdk";
+import { runLoop } from "@warrant/core";
+import { FunctionVerifier } from "@warrant/verify-fn";
 import { makePrinter, printWitness } from "../_shared.ts";
 
 if (!process.env.ANTHROPIC_API_KEY) {

@@ -5,8 +5,8 @@
 //
 //   node examples/meal-plan/run.ts
 
-import { runLoop, type Solver, type SpecAuthor } from "../../packages/core/src/index.ts";
-import { type Predicate, PredicateVerifier } from "../../packages/verify-predicate/src/index.ts";
+import { runLoop, type Solver, type SpecAuthor } from "@warrant/core";
+import { type Predicate, PredicateVerifier } from "@warrant/verify-predicate";
 import { makePrinter, nth, printWitness } from "../_shared.ts";
 
 type Day = { day: string; main: string; calories: number };

@@ -5,8 +5,8 @@
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { runLoop } from "../../core/src/index.ts";
-import { FunctionVerifier } from "../../verify-fn/src/index.ts";
+import { runLoop } from "@warrant/core";
+import { FunctionVerifier } from "@warrant/verify-fn";
 import { type CodeTask, makeCritic, makeSolver, makeSpecAuthor } from "../src/complete.ts";
 
 test("generic role builders work with any Complete (here, a non-LLM stub)", async () => {

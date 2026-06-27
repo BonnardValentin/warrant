@@ -10,6 +10,15 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.0",
+    "@warrant/core": "*",
     "ai": "^7.0.2"
+  },
+  "files": ["dist"],
+  "publishConfig": {
+    "exports": {
+      ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs" },
+      "./complete": { "types": "./dist/complete.d.mts", "import": "./dist/complete.mjs" },
+      "./ai-sdk": { "types": "./dist/ai-sdk.d.mts", "import": "./dist/ai-sdk.mjs" }
+    }
   }
 }

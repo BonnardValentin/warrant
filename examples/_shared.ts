@@ -1,7 +1,7 @@
 // Shared console reporting for the examples. Not part of the library — it just
 // keeps the three demos from copy-pasting the same printers.
 
-import type { Event, Witness } from "../packages/core/src/index.ts";
+import type { Event, Witness } from "@warrant/core";
 
 export function badge(verdict: string): string {
   return verdict === "accept"

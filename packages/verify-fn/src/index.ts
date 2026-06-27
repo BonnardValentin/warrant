@@ -13,8 +13,14 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import type { Sandbox, SandboxLimits, SandboxResult, Verifier } from "../../core/src/verifier.ts";
-import type { Severity, Witness } from "../../core/src/witness.ts";
+import type {
+  Sandbox,
+  SandboxLimits,
+  SandboxResult,
+  Severity,
+  Verifier,
+  Witness,
+} from "@warrant/core";
 
 export class SubprocessSandbox implements Sandbox {
   run(entryFile: string, limits: SandboxLimits): Promise<SandboxResult> {

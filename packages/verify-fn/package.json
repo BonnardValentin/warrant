@@ -3,5 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" }
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": { "@warrant/core": "*" },
+  "files": ["dist"],
+  "publishConfig": {
+    "exports": { ".": { "types": "./dist/index.d.mts", "import": "./dist/index.mjs" } }
+  }
 }
